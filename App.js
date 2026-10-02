@@ -3019,94 +3019,73 @@ export default function App() {
 
   function Profile() {
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: "#F8F8F8",
+      }}
+    >
       <ScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={{
+          padding: 24,
+        }}
       >
-        <Text style={styles.pageTitle}>
+        <Text
+          style={{
+            fontSize: 30,
+            fontWeight: "800",
+            marginBottom: 30,
+          }}
+        >
           Профиль
         </Text>
 
-        <View style={styles.profileCard}>
-          <View style={styles.largeProfileCircle}>
-            <Text style={{ fontSize: 32 }}>
-              👨‍🍳
-            </Text>
-          </View>
-
-          <Text style={styles.profileName}>
-            {authUser?.user_metadata?.name ||
-              "PaCook User"}
-          </Text>
-
-          <Text style={styles.profileEmail}>
-            {authUser?.email ||
-              "Твой персональный профиль"}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.profileOption}
-          onPress={unlockAuthor}
+        <View
+          style={{
+            backgroundColor: "#FFFFFF",
+            padding: 24,
+            borderRadius: 20,
+          }}
         >
-          <Text style={styles.optionIcon}>
-            ⚙️
+          <Text
+            style={{
+              fontSize: 24,
+              marginBottom: 10,
+            }}
+          >
+            👨‍🍳
           </Text>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.optionTitle}>
-              Режим автора
-            </Text>
-
-            <Text style={styles.optionText}>
-              Управление рецептами и продуктами
-            </Text>
-          </View>
-
-          <Text>›</Text>
-        </TouchableOpacity>
-
-        <View style={styles.statsCard}>
-          <Text style={styles.optionTitle}>
-            Моя PaCook
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "700",
+            }}
+          >
+            {authUser?.email || "PaCook User"}
           </Text>
-
-          <View style={styles.statRow}>
-            <Text>Рецептов</Text>
-
-            <Text style={styles.statValue}>
-              {recipes.length}
-            </Text>
-          </View>
-
-          <View style={styles.statRow}>
-            <Text>Продуктов</Text>
-
-            <Text style={styles.statValue}>
-              {Object.keys(products).length}
-            </Text>
-          </View>
-
-          <View style={styles.statRow}>
-            <Text>В дневнике</Text>
-
-            <Text style={styles.statValue}>
-              {diary.length}
-            </Text>
-          </View>
         </View>
 
         <TouchableOpacity
-          style={styles.logoutButton}
           onPress={logoutUser}
+          style={{
+            marginTop: 30,
+            padding: 16,
+            borderRadius: 14,
+            backgroundColor: "#EEEEEE",
+            alignItems: "center",
+          }}
         >
-          <Text style={styles.logoutButtonText}>
+          <Text
+            style={{
+              color: "#D64545",
+              fontWeight: "700",
+            }}
+          >
             Выйти из аккаунта
           </Text>
         </TouchableOpacity>
       </ScrollView>
-
-      <BottomNav />
     </SafeAreaView>
   );
 }
