@@ -25,20 +25,27 @@ import { createClient } from "@supabase/supabase-js";
    SUPABASE
 ========================================================= */
 
-const SUPABASE_URL = "https://fzjpsrcgmfihpnavnqdc.supabase.co";
+const SUPABASE_URL =
+  "https://fzjpsrcgmfihpnavnqdc.supabase.co";
+
 const SUPABASE_KEY =
   "sb_publishable_SfEpToq_GIgL37TYTNesIw_VAp6q5yt";
-  const supabase = createClient(
+
+const PACOOK_URL =
+  "https://pacook-l7lykxl6k-pa-cook.vercel.app";
+
+const supabase = createClient(
   SUPABASE_URL,
   SUPABASE_KEY
 );
 
-const PACOOK_URL =
-  "https://pacook-l7lykxl6k-pa-cook.vercel.app";
-  
+/* =========================================================
+   REGISTRATION
+========================================================= */
+
 async function signUpSupabase(email, password) {
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: email.trim().toLowerCase(),
     password,
     options: {
       emailRedirectTo: PACOOK_URL,
@@ -52,35 +59,27 @@ async function signUpSupabase(email, password) {
   return data;
 }
 
+/* =========================================================
+   LOGIN
+========================================================= */
+
 async function signInSupabase(email, password) {
-  const response = await fetch(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        password,
-      }),
-    }
-  );
+  const { data, error } =
+    await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data?.msg ||
-      data?.message ||
-      data?.error_description ||
-      "Ошибка входа"
-    );
+  if (error) {
+    throw new Error(error.message);
   }
 
   return data;
 }
+
+/* =========================================================
+   AUTH SCREEN
+========================================================= */
 
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState("login");
@@ -96,7 +95,9 @@ function AuthScreen({ onAuth }) {
     }
 
     if (password.length < 6) {
-      setError("Пароль должен содержать минимум 6 символов");
+      setError(
+        "Пароль должен содержать минимум 6 символов"
+      );
       return;
     }
 
@@ -107,19 +108,27 @@ function AuthScreen({ onAuth }) {
       const data =
         mode === "login"
           ? await signInSupabase(
-              email.trim(),
+              email,
               password
             )
           : await signUpSupabase(
-              email.trim(),
+              email,
               password
             );
 
-      if (data?.access_token && data?.user) {
+      /* =====================================================
+         ВХОД БЕЗ ПОДТВЕРЖДЕНИЯ EMAIL
+      ===================================================== */
+
+      if (
+        mode === "login" &&
+        data?.user
+      ) {
         await AsyncStorage.setItem(
           "PACOOK_SESSION",
           JSON.stringify({
-            access_token: data.access_token,
+            access_token:
+              data.access_token,
             user: data.user,
           })
         );
@@ -128,17 +137,43 @@ function AuthScreen({ onAuth }) {
         return;
       }
 
-      if (mode === "register" && data?.user) {
+      /* =====================================================
+         РЕГИСТРАЦИЯ С ПОДТВЕРЖДЕНИЕМ EMAIL
+      ===================================================== */
+
+      if (
+        mode === "register" &&
+        data?.user
+      ) {
+        if (data?.session) {
+          await AsyncStorage.setItem(
+            "PACOOK_SESSION",
+            JSON.stringify({
+              access_token:
+                data.session.access_token,
+              user: data.user,
+            })
+          );
+
+          onAuth(data.user);
+          return;
+        }
+
         setMode("login");
         setError(
-          "Аккаунт создан. Теперь войдите."
+          "Аккаунт создан. Проверьте почту и подтвердите email. После подтверждения вернитесь в PaCook и войдите."
         );
         return;
       }
 
-      setError("Не удалось выполнить операцию");
+      setError(
+        "Не удалось выполнить операцию"
+      );
     } catch (e) {
-      console.log("AUTH ERROR:", e);
+      console.log(
+        "AUTH ERROR:",
+        e
+      );
 
       setError(
         e?.message ||
@@ -155,7 +190,8 @@ function AuthScreen({ onAuth }) {
         flex: 1,
         justifyContent: "center",
         padding: 24,
-        backgroundColor: COLORS.background,
+        backgroundColor:
+          COLORS.background,
       }}
     >
       <Text
@@ -230,11 +266,14 @@ function AuthScreen({ onAuth }) {
         onPress={handleAuth}
         disabled={loading}
         style={{
-          backgroundColor: COLORS.green,
+          backgroundColor:
+            COLORS.green,
           padding: 16,
           borderRadius: 14,
           alignItems: "center",
-          opacity: loading ? 0.6 : 1,
+          opacity: loading
+            ? 0.6
+            : 1,
         }}
       >
         <Text
@@ -279,10 +318,10 @@ function AuthScreen({ onAuth }) {
     </SafeAreaView>
   );
 }
-/*
-  Загружаем продукты из Supabase REST API.
-  Никаких дополнительных библиотек не требуется.
-*/
+
+/* =========================================================
+   SUPABASE PRODUCTS
+========================================================= */
 
 async function getSupabaseProducts() {
   const response = await fetch(
@@ -290,15 +329,19 @@ async function getSupabaseProducts() {
     {
       headers: {
         apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Authorization:
+          `Bearer ${SUPABASE_KEY}`,
       },
     }
   );
 
   if (!response.ok) {
-    const errorText = await response.text();
+    const errorText =
+      await response.text();
+
     throw new Error(
-      errorText || `Ошибка Supabase: ${response.status}`
+      errorText ||
+        `Ошибка Supabase: ${response.status}`
     );
   }
 
