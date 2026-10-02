@@ -3018,127 +3018,98 @@ export default function App() {
   ========================================================= */
 
   function Profile() {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <ScrollView
-          contentContainerStyle={
-            styles.container
-          }
-        >
-          <Text style={styles.pageTitle}>
-            Профиль
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+      >
+        <Text style={styles.pageTitle}>
+          Профиль
+        </Text>
+
+        <View style={styles.profileCard}>
+          <View style={styles.largeProfileCircle}>
+            <Text style={{ fontSize: 32 }}>
+              👨‍🍳
+            </Text>
+          </View>
+
+          <Text style={styles.profileName}>
+            {authUser?.user_metadata?.name ||
+              "PaCook User"}
           </Text>
 
-          <View
-            style={styles.profileCard}
-          >
-            <View
-              style={
-                styles.largeProfileCircle
-              }
-            >
-              <Text
-                style={{ fontSize: 32 }}
-              >
-                👨‍🍳
-              </Text>
-            </View>
+          <Text style={styles.profileEmail}>
+            {authUser?.email ||
+              "Твой персональный профиль"}
+          </Text>
+        </View>
 
-            <Text
-              style={styles.profileName}
-            >
-              {authUser?.user_metadata?.name || "PaCook User"}
+        <TouchableOpacity
+          style={styles.profileOption}
+          onPress={unlockAuthor}
+        >
+          <Text style={styles.optionIcon}>
+            ⚙️
+          </Text>
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.optionTitle}>
+              Режим автора
             </Text>
 
-            <Text
-              style={styles.profileEmail}
-            >
-              {authUser?.email || "Твой персональный профиль"}
+            <Text style={styles.optionText}>
+              Управление рецептами и продуктами
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.profileOption}
-            onPress={unlockAuthor}
-          >
-            <Text
-              style={styles.optionIcon}
-            >
-              ⚙️
+          <Text>›</Text>
+        </TouchableOpacity>
+
+        <View style={styles.statsCard}>
+          <Text style={styles.optionTitle}>
+            Моя PaCook
+          </Text>
+
+          <View style={styles.statRow}>
+            <Text>Рецептов</Text>
+
+            <Text style={styles.statValue}>
+              {recipes.length}
             </Text>
-
-            <View
-              style={{ flex: 1 }}
-            >
-              <Text
-                style={styles.optionTitle}
-              >
-                Режим автора
-              </Text>
-
-              <Text
-                style={styles.optionText}
-              >
-                Управление рецептами и
-                продуктами
-              </Text>
-            </View>
-
-            <Text>›</Text>
-          </TouchableOpacity>
-
-          <View
-            style={styles.statsCard}
-          >
-            <Text
-              style={styles.optionTitle}
-            >
-              Моя PaCook
-            </Text>
-
-            <View style={styles.statRow}>
-              <Text>Рецептов</Text>
-
-              <Text
-                style={styles.statValue}
-              >
-                {recipes.length}
-              </Text>
-            </View>
-
-            <View style={styles.statRow}>
-              <Text>Продуктов</Text>
-
-              <Text
-                style={styles.statValue}
-              >
-                {Object.keys(
-                  products
-                ).length}
-              </Text>
-            </View>
-
-            <View style={styles.statRow}>
-              <Text>В дневнике</Text>
-
-              <Text
-                style={styles.statValue}
-              >
-                {diary.length}
-              </Text>
-            </View>
           </View>
-          <Button
-  title="Выйти из аккаунта"
-  danger
-  onPress={logoutUser}
-/>
-        </ScrollView>
 
-        <BottomNav />
-      </SafeAreaView>
-    );
-  }
+          <View style={styles.statRow}>
+            <Text>Продуктов</Text>
+
+            <Text style={styles.statValue}>
+              {Object.keys(products).length}
+            </Text>
+          </View>
+
+          <View style={styles.statRow}>
+            <Text>В дневнике</Text>
+
+            <Text style={styles.statValue}>
+              {diary.length}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={logoutUser}
+        >
+          <Text style={styles.logoutButtonText}>
+            Выйти из аккаунта
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <BottomNav />
+    </SafeAreaView>
+  );
+}
 
   /* =========================================================
      AUTHOR PIN
