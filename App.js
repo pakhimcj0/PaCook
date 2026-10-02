@@ -14,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createClient } from "@supabase/supabase-js";
 
 /* =========================================================
    PACOOK
@@ -27,34 +28,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const SUPABASE_URL = "https://fzjpsrcgmfihpnavnqdc.supabase.co";
 const SUPABASE_KEY =
   "sb_publishable_SfEpToq_GIgL37TYTNesIw_VAp6q5yt";
+  const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
 const PACOOK_URL =
   "https://pacook-l7lykxl6k-pa-cook.vercel.app";
   
 async function signUpSupabase(email, password) {
-  const response = await fetch(
-  `${SUPABASE_URL}/auth/v1/signup?redirect_to=${encodeURIComponent(PACOOK_URL)}`,
-    {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        password,
-      }),
-    }
-  );
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: PACOOK_URL,
+    },
+  });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data?.msg ||
-      data?.message ||
-      data?.error_description ||
-      "Ошибка регистрации"
-    );
+  if (error) {
+    throw new Error(error.message);
   }
 
   return data;
