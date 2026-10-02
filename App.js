@@ -3034,74 +3034,328 @@ export default function App() {
   ========================================================= */
 
   function Profile() {
+  const isAuthor =
+    authUser?.email?.toLowerCase() ===
+    "pakdaniil36@gmail.com";
+
   return (
     <SafeAreaView
       style={{
         flex: 1,
-        backgroundColor: "#F8F8F8",
+        backgroundColor: "#F7F8F5",
       }}
     >
       <ScrollView
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          padding: 24,
+          padding: 20,
+          paddingBottom: 120,
         }}
       >
+        {/* Заголовок */}
         <Text
           style={{
-            fontSize: 30,
+            fontSize: 32,
             fontWeight: "800",
-            marginBottom: 30,
+            color: "#1F2A24",
+            marginBottom: 6,
           }}
         >
           Профиль
         </Text>
 
+        <Text
+          style={{
+            fontSize: 15,
+            color: "#7A847E",
+            marginBottom: 24,
+          }}
+        >
+          Твой личный профиль PaCook
+        </Text>
+
+        {/* Карточка пользователя */}
         <View
           style={{
             backgroundColor: "#FFFFFF",
-            padding: 24,
-            borderRadius: 20,
+            borderRadius: 24,
+            padding: 22,
+            marginBottom: 18,
+            shadowColor: "#000",
+            shadowOpacity: 0.05,
+            shadowRadius: 12,
+            shadowOffset: {
+              width: 0,
+              height: 4,
+            },
+            elevation: 2,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: "#E8F2EA",
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 16,
+              }}
+            >
+              <Text style={{ fontSize: 30 }}>
+                👨‍🍳
+              </Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "800",
+                  color: "#1F2A24",
+                  marginBottom: 5,
+                }}
+              >
+                PaCook User
+              </Text>
+
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: "#7A847E",
+                }}
+                numberOfLines={1}
+              >
+                {authUser?.email || "Пользователь"}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Статистика */}
+        <View
+          style={{
+            backgroundColor: "#FFFFFF",
+            borderRadius: 24,
+            padding: 20,
+            marginBottom: 18,
           }}
         >
           <Text
             style={{
-              fontSize: 24,
-              marginBottom: 10,
+              fontSize: 19,
+              fontWeight: "800",
+              color: "#1F2A24",
+              marginBottom: 18,
             }}
           >
-            👨‍🍳
+            Моя PaCook
           </Text>
 
-          <Text
+          <View
             style={{
-              fontSize: 20,
-              fontWeight: "700",
+              flexDirection: "row",
+              justifyContent: "space-between",
             }}
           >
-            {authUser?.email || "PaCook User"}
-          </Text>
+            <View style={{ alignItems: "center", flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 25,
+                  fontWeight: "800",
+                  color: "#4F8A5B",
+                }}
+              >
+                {recipes?.length || 0}
+              </Text>
+
+              <Text
+                style={{
+                  marginTop: 5,
+                  color: "#7A847E",
+                  fontSize: 13,
+                }}
+              >
+                Рецептов
+              </Text>
+            </View>
+
+            <View style={{ alignItems: "center", flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 25,
+                  fontWeight: "800",
+                  color: "#4F8A5B",
+                }}
+              >
+                {Object.keys(products || {}).length}
+              </Text>
+
+              <Text
+                style={{
+                  marginTop: 5,
+                  color: "#7A847E",
+                  fontSize: 13,
+                }}
+              >
+                Продуктов
+              </Text>
+            </View>
+
+            <View style={{ alignItems: "center", flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 25,
+                  fontWeight: "800",
+                  color: "#4F8A5B",
+                }}
+              >
+                {diary?.length || 0}
+              </Text>
+
+              <Text
+                style={{
+                  marginTop: 5,
+                  color: "#7A847E",
+                  fontSize: 13,
+                }}
+              >
+                В дневнике
+              </Text>
+            </View>
+          </View>
         </View>
 
+        {/* Режим автора */}
+        {isAuthor && (
+          <TouchableOpacity
+            onPress={unlockAuthor}
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 20,
+              padding: 18,
+              marginBottom: 14,
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 16,
+                backgroundColor: "#E8F2EA",
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 14,
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>
+                ⚙️
+              </Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 17,
+                  fontWeight: "800",
+                  color: "#1F2A24",
+                }}
+              >
+                Режим автора
+              </Text>
+
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: "#7A847E",
+                  marginTop: 4,
+                }}
+              >
+                Управление рецептами и продуктами
+              </Text>
+            </View>
+
+            <Text
+              style={{
+                fontSize: 28,
+                color: "#9AA39D",
+              }}
+            >
+              ›
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Выход */}
         <TouchableOpacity
           onPress={logoutUser}
           style={{
-            marginTop: 30,
-            padding: 16,
-            borderRadius: 14,
-            backgroundColor: "#EEEEEE",
+            backgroundColor: "#FFFFFF",
+            borderRadius: 20,
+            padding: 18,
+            flexDirection: "row",
             alignItems: "center",
+            marginTop: 4,
           }}
         >
-          <Text
+          <View
             style={{
-              color: "#D64545",
-              fontWeight: "700",
+              width: 48,
+              height: 48,
+              borderRadius: 16,
+              backgroundColor: "#FDECEC",
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 14,
             }}
           >
-            Выйти из аккаунта
+            <Text style={{ fontSize: 22 }}>
+              🚪
+            </Text>
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: "800",
+                color: "#D64545",
+              }}
+            >
+              Выйти из аккаунта
+            </Text>
+
+            <Text
+              style={{
+                fontSize: 13,
+                color: "#9A8585",
+                marginTop: 4,
+              }}
+            >
+              Завершить текущую сессию
+            </Text>
+          </View>
+
+          <Text
+            style={{
+              fontSize: 28,
+              color: "#D64545",
+            }}
+          >
+            ›
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <BottomNav />
     </SafeAreaView>
   );
 }
