@@ -27,10 +27,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const SUPABASE_URL = "https://fzjpsrcgmfihpnavnqdc.supabase.co";
 const SUPABASE_KEY =
   "sb_publishable_SfEpToq_GIgL37TYTNesIw_VAp6q5yt";
-
+const PACOOK_URL =
+  "https://pacook-l7lykxl6k-pa-cook.vercel.app";
+  
 async function signUpSupabase(email, password) {
   const response = await fetch(
-    `${SUPABASE_URL}/auth/v1/signup`,
+  `${SUPABASE_URL}/auth/v1/signup?redirect_to=${encodeURIComponent(PACOOK_URL)}`,
     {
       method: "POST",
       headers: {
