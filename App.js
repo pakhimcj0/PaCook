@@ -1175,8 +1175,22 @@ export default function App() {
   }
 
   function unlockAuthor() {
-    setScreen("authorPin");
+  const authorEmail = "pakdaniil36@gmail.com";
+
+  if (
+    authUser?.email?.toLowerCase() ===
+    authorEmail.toLowerCase()
+  ) {
+    setAuthorUnlocked(true);
+    setScreen("author");
+    return;
   }
+
+  Alert.alert(
+    "Доступ запрещён",
+    "Режим автора доступен только владельцу PaCook."
+  );
+}
 
   function logoutAuthor() {
     setAuthorUnlocked(false);
