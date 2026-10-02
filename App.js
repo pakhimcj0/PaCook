@@ -3084,6 +3084,80 @@ async function pickAvatar() {
         quality: 0.8,
       });
 
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      return;
+    }
+
+    const imageUri = result.assets[0].uri;
+
+    const response = await fetch(imageUri);
+    const blob = await response.blob();
+
+    const fileExt =
+      imageUri.split(".").pop()?.split("?")[0] || "jpg";
+
+    const fileName =
+      `${authUser.id}-${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } =
+      await supabase.storage
+        .from("avatars")
+        .upload(fileName, blob, {
+          contentType: blob.type || "image/jpeg",
+          upsert: true,
+        });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } =
+      supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+
+    const avatarUrl = data.publicUrl;
+
+    const { data: userData, error: userError } =
+      await supabase.auth.updateUser({
+        data: {
+          avatar_url: avatarUrl,
+        },
+      });
+
+    if (userError) {
+      throw userError;
+    }
+
+    setAvatar(avatarUrl);
+
+    if (userData?.user) {
+      setAuthUser(userData.user);
+    }
+
+    Alert.alert(
+      "Готово",
+      "Фотография профиля сохранена."
+    );
+  } catch (error) {
+    console.log("AVATAR UPLOAD ERROR", error);
+
+    Alert.alert(
+      "Ошибка",
+      error?.message ||
+        "Не удалось загрузить фотографию."
+    );
+  }
+}
+
+    const result =
+      await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
     if (!result.canceled && result.assets?.[0]?.uri) {
       setAvatar(result.assets[0].uri);
     }
