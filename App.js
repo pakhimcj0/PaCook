@@ -889,6 +889,22 @@ function Button({
 ========================================================= */
 
 export default function App() {
+  if (typeof window !== "undefined") {
+  window.onerror = function (
+    message,
+    source,
+    lineno,
+    colno,
+    error
+  ) {
+    alert(
+      "PaCook ERROR:\n\n" +
+      message +
+      "\n\n" +
+      (error?.stack || "")
+    );
+  };
+}
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [recipes, setRecipes] = useState(INITIAL_RECIPES);
 
