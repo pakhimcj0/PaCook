@@ -871,11 +871,34 @@ export default function App() {
   const [category, setCategory] = useState("Все");
 
   const [loaded, setLoaded] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   /* =========================================================
      LOAD
   ========================================================= */
 
+useEffect(() => {
+  async function checkAuth() {
+    try {
+      const saved = await AsyncStorage.getItem("PACOOK_SESSION");
+
+      if (saved) {
+        const session = JSON.parse(saved);
+
+        if (session?.user) {
+          setAuthUser(session.user);
+        }
+      }
+    } catch (e) {
+      console.log("AUTH SESSION ERROR", e);
+    } finally {
+      setAuthChecked(true);
+    }
+  }
+
+  checkAuth();
+}, []);
   useEffect(() => {
     loadData();
   }, []);
@@ -2904,13 +2927,13 @@ export default function App() {
             <Text
               style={styles.profileName}
             >
-              PaCook User
+              {authUser?.user_metadata?.name || "PaCook User"}
             </Text>
 
             <Text
               style={styles.profileEmail}
             >
-              Твой персональный профиль
+              {authUser?.email || "Твой персональный профиль"}
             </Text>
           </View>
 
@@ -2985,6 +3008,11 @@ export default function App() {
               </Text>
             </View>
           </View>
+          <Button
+  title="Выйти из аккаунта"
+  danger
+  onPress={logoutUser}
+/>
         </ScrollView>
 
         <BottomNav />
@@ -4423,6 +4451,26 @@ export default function App() {
      SCREEN ROUTER
   ========================================================= */
 
+  if (!authChecked) {
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.loading}>
+        <Text style={styles.logo}>PaCook</Text>
+        <Text>Проверяем аккаунт...</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+if (!authUser) {
+  return (
+    <AuthScreen
+      onAuth={(user) => {
+        setAuthUser(user);
+      }}
+    />
+  );
+}
   if (!loaded) {
     return (
       <SafeAreaView
@@ -4486,6 +4534,21 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 110,
   },
+  
+logoutButton: {
+  marginTop: 24,
+  marginBottom: 30,
+  padding: 16,
+  borderRadius: 14,
+  alignItems: "center",
+  backgroundColor: "#F3F3F3",
+},
+
+logoutButtonText: {
+  fontSize: 16,
+  fontWeight: "600",
+  color: "#D64545",
+},
 
   loading: {
     flex: 1,
