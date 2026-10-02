@@ -4795,10 +4795,6 @@ if (!authUser) {
     return <Profile />;
   }
 
-  if (screen === "authorPin") {
-    return <AuthorPin />;
-  }
-
   if (screen === "author") {
     return <Author />;
   }
