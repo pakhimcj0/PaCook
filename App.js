@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 
@@ -3062,6 +3063,39 @@ async function logoutUser() {
     authUser?.user_metadata?.avatar_url || ""
   );
 
+async function pickAvatar() {
+  try {
+    const permission =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert(
+        "Нужен доступ",
+        "Разреши PaCook доступ к фотографиям."
+      );
+      return;
+    }
+
+    const result =
+      await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setAvatar(result.assets[0].uri);
+    }
+  } catch (error) {
+    console.log("AVATAR PICK ERROR", error);
+
+    Alert.alert(
+      "Ошибка",
+      "Не удалось выбрать фотографию."
+    );
+  }
+}
   async function saveProfile() {
     try {
       const cleanName =
@@ -3127,37 +3161,38 @@ async function logoutUser() {
           }}
         >
           {/* АВАТАР */}
-          {avatar ? (
-            <Image
-              source={{ uri: avatar }}
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: 50,
-                marginBottom: 14,
-              }}
-            />
-          ) : (
-            <View
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: 50,
-                backgroundColor: "#E8F2EA",
-                justifyContent: "center",
-                alignItems: "center",
-                marginBottom: 14,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 45,
-                }}
-              >
-                👨‍🍳
-              </Text>
-            </View>
-          )}
+<TouchableOpacity
+  onPress={pickAvatar}
+  activeOpacity={0.8}
+  style={{
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 14,
+    overflow: "hidden",
+    backgroundColor: "#E8F2EA",
+    justifyContent: "center",
+    alignItems: "center",
+  }}
+>
+  {avatar ? (
+    <Image
+      source={{ uri: avatar }}
+      style={{
+        width: 100,
+        height: 100,
+      }}
+    />
+  ) : (
+    <Text
+      style={{
+        fontSize: 45,
+      }}
+    >
+      👨‍🍳
+    </Text>
+  )}
+</TouchableOpacity>
 
           {!editing ? (
             <>
