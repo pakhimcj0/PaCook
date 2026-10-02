@@ -878,20 +878,88 @@ export default function App() {
      LOAD
   ========================================================= */
 
-useEffect(() => {
+ useEffect(() => {
   async function checkAuth() {
     try {
-      const saved = await AsyncStorage.getItem("PACOOK_SESSION");
+      // 1. Проверяем сохранённую сессию
+      const saved = await AsyncStorage.getItem(
+        "PACOOK_SESSION"
+      );
 
       if (saved) {
         const session = JSON.parse(saved);
 
         if (session?.user) {
           setAuthUser(session.user);
+          return;
+        }
+      }
+
+      // 2. Если пользователь только что подтвердил email
+      // Supabase передаёт access_token и refresh_token
+      // в URL после подтверждения.
+      if (
+        Platform.OS === "web" &&
+        typeof window !== "undefined"
+      ) {
+        const hash = window.location.hash;
+
+        if (hash) {
+          const params = new URLSearchParams(
+            hash.substring(1)
+          );
+
+          const accessToken =
+            params.get("access_token");
+
+          const refreshToken =
+            params.get("refresh_token");
+
+          const type = params.get("type");
+
+          if (accessToken) {
+            // Получаем пользователя по access token
+            const response = await fetch(
+              `${SUPABASE_URL}/auth/v1/user`,
+              {
+                headers: {
+                  apikey: SUPABASE_KEY,
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              }
+            );
+
+            const user = await response.json();
+
+            if (response.ok && user?.id) {
+              await AsyncStorage.setItem(
+                "PACOOK_SESSION",
+                JSON.stringify({
+                  access_token: accessToken,
+                  refresh_token: refreshToken,
+                  user,
+                })
+              );
+
+              setAuthUser(user);
+
+              // Убираем токены из адресной строки
+              window.history.replaceState(
+                {},
+                document.title,
+                window.location.pathname
+              );
+
+              return;
+            }
+          }
         }
       }
     } catch (e) {
-      console.log("AUTH SESSION ERROR", e);
+      console.log(
+        "AUTH SESSION ERROR:",
+        e
+      );
     } finally {
       setAuthChecked(true);
     }
@@ -899,6 +967,7 @@ useEffect(() => {
 
   checkAuth();
 }, []);
+
   useEffect(() => {
     loadData();
   }, []);
