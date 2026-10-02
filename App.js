@@ -946,25 +946,6 @@ async function logoutUser() {
     setScreen("home");
   }
 }
-async function logoutUser() {
-  try {
-    await AsyncStorage.removeItem("PACOOK_SESSION");
-
-    await supabase.auth.signOut();
-
-    setAuthUser(null);
-    setAuthorUnlocked(false);
-    setScreen("home");
-  } catch (error) {
-    console.log("LOGOUT ERROR", error);
-
-    await AsyncStorage.removeItem("PACOOK_SESSION");
-
-    setAuthUser(null);
-    setAuthorUnlocked(false);
-    setScreen("home");
-  }
-}
   /* =========================================================
      LOAD
   ========================================================= */
