@@ -925,7 +925,27 @@ export default function App() {
 
   const [loaded, setLoaded] = useState(false);
   const [authUser, setAuthUser] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
+const [authChecked, setAuthChecked] = useState(false);
+
+async function logoutUser() {
+  try {
+    await AsyncStorage.removeItem("PACOOK_SESSION");
+
+    await supabase.auth.signOut();
+
+    setAuthUser(null);
+    setAuthorUnlocked(false);
+    setScreen("home");
+  } catch (error) {
+    console.log("LOGOUT ERROR", error);
+
+    await AsyncStorage.removeItem("PACOOK_SESSION");
+
+    setAuthUser(null);
+    setAuthorUnlocked(false);
+    setScreen("home");
+  }
+}
 async function logoutUser() {
   try {
     await AsyncStorage.removeItem("PACOOK_SESSION");
