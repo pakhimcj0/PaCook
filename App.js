@@ -4940,16 +4940,16 @@ if (showSplash) {
       }}
     >
       <Image
-        source={{
-          uri: "https://fotovssylku.ru/i/copy-68158ACB-4FF2-40A5-A370-7D76C353E5D0.QYBz5",
-        }}
-        style={{
-          width: 170,
-          height: 170,
-          borderRadius: 38,
-          marginBottom: 24,
-        }}
-      />
+  source={{
+    uri: "https://fotovssylku.ru/i/copy-68158ACB-4FF2-40A5-A370-7D76C353E5D0.QYBz5",
+  }}
+  style={{
+    width: 180,
+    height: 180,
+    borderRadius: 40,
+    marginBottom: 24,
+  }}
+/>
 
       <Text
         style={{
