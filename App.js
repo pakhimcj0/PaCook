@@ -4940,16 +4940,16 @@ if (showSplash) {
       }}
     >
       <Image
-  source={{
-    uri: "https://fotovssylku.ru/i/copy-68158ACB-4FF2-40A5-A370-7D76C353E5D0.Qp1LO",
-  }}
-  style={{
-    width: 180,
-    height: 180,
-    borderRadius: 40,
-    marginBottom: 24,
-  }}
-/>
+        source={{
+          uri: "https://fotovssylku.ru/i/copy-68158ACB-4FF2-40A5-A370-7D76C353E5D0.Qp1LO",
+        }}
+        style={{
+          width: 180,
+          height: 180,
+          borderRadius: 40,
+          marginBottom: 24,
+        }}
+      />
 
       <Text
         style={{
@@ -4984,7 +4984,8 @@ if (showSplash) {
     </SafeAreaView>
   );
 }
-  if (!authChecked) {
+
+if (!authChecked) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.loading}>
@@ -5004,49 +5005,39 @@ if (!authUser) {
     />
   );
 }
-  if (!loaded) {
-    return (
-      <SafeAreaView
-        style={styles.safe}
-      >
-        <View
-          style={styles.loading}
-        >
-          <Text
-            style={styles.logo}
-          >
-            PaCook
-          </Text>
 
-          <Text>
-            Загрузка...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+if (!loaded) {
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.loading}>
+        <Text style={styles.logo}>PaCook</Text>
+        <Text>Загрузка...</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
 
-  if (screen === "recipe") {
-    return <RecipeScreen />;
-  }
+if (screen === "recipe") {
+  return <RecipeScreen />;
+}
 
-  if (screen === "calculator") {
-    return <Calculator />;
-  }
+if (screen === "calculator") {
+  return <Calculator />;
+}
 
-  if (screen === "diary") {
-    return <Diary />;
-  }
+if (screen === "diary") {
+  return <Diary />;
+}
 
-  if (screen === "profile") {
-    return <Profile />;
-  }
+if (screen === "profile") {
+  return <Profile />;
+}
 
-  if (screen === "author") {
-    return <Author />;
-  }
+if (screen === "author") {
+  return <Author />;
+}
 
-  return <Home />;
+return <Home />;
 }
 
 /* =========================================================
