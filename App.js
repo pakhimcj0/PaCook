@@ -3084,7 +3084,10 @@ async function pickAvatar() {
         quality: 0.8,
       });
 
-    if (result.canceled || !result.assets?.[0]?.uri) {
+    if (
+      result.canceled ||
+      !result.assets?.[0]?.uri
+    ) {
       return;
     }
 
@@ -3093,17 +3096,14 @@ async function pickAvatar() {
     const response = await fetch(imageUri);
     const blob = await response.blob();
 
-    const fileExt =
-      imageUri.split(".").pop()?.split("?")[0] || "jpg";
-
     const fileName =
-      `${authUser.id}-${Date.now()}.${fileExt}`;
+      `${authUser.id}-${Date.now()}.jpg`;
 
     const { error: uploadError } =
       await supabase.storage
         .from("avatars")
         .upload(fileName, blob, {
-          contentType: blob.type || "image/jpeg",
+          contentType: "image/jpeg",
           upsert: true,
         });
 
@@ -3140,7 +3140,10 @@ async function pickAvatar() {
       "Фотография профиля сохранена."
     );
   } catch (error) {
-    console.log("AVATAR UPLOAD ERROR", error);
+    console.log(
+      "AVATAR UPLOAD ERROR",
+      error
+    );
 
     Alert.alert(
       "Ошибка",
@@ -3150,26 +3153,6 @@ async function pickAvatar() {
   }
 }
 
-    const result =
-      await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      setAvatar(result.assets[0].uri);
-    }
-  } catch (error) {
-    console.log("AVATAR PICK ERROR", error);
-
-    Alert.alert(
-      "Ошибка",
-      "Не удалось выбрать фотографию."
-    );
-  }
-}
   async function saveProfile() {
     try {
       const cleanName =
