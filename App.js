@@ -3055,6 +3055,7 @@ async function logoutUser() {
 
   function Profile() {
   const [editing, setEditing] = useState(false);
+
   const [name, setName] = useState(
     authUser?.user_metadata?.name || ""
   );
@@ -3063,247 +3064,188 @@ async function logoutUser() {
     authUser?.user_metadata?.avatar_url || ""
   );
 
-async function pickAvatar() {
-  try {
-    let imageUri = "";
+  async function pickAvatar() {
+    try {
+      // =========================
+      // WEB
+      // =========================
+      if (Platform.OS === "web") {
+        const input = document.createElement("input");
 
-    if (Platform.OS === "web") {
-      const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
 
-      input.type = "file";
-      input.accept = "image/*";
+        input.onchange = async (event) => {
+          const file = event.target.files?.[0];
 
-      input.onchange = async (event) => {
-        const file = event.target.files?.[0];
+          if (!file) return;
 
-        if (!file) return;
+          const previewUrl = URL.createObjectURL(file);
+          setAvatar(previewUrl);
 
-        const previewUrl = URL.createObjectURL(file);
-        setAvatar(previewUrl);
+          try {
+            const extension =
+              file.name.split(".").pop() || "jpg";
 
-        try {
-          const fileName =
-            `${authUser.id}-${Date.now()}.${file.name.split(".").pop() || "jpg"}`;
+            const fileName =
+              `${authUser.id}-${Date.now()}.${extension}`;
 
-          const { error: uploadError } =
-            await supabase.storage
-              .from("avatars")
-              .upload(fileName, file, {
-                contentType: file.type || "image/jpeg",
-                upsert: true,
-              });
+            const { error: uploadError } =
+              await supabase.storage
+                .from("avatars")
+                .upload(fileName, file, {
+                  contentType:
+                    file.type || "image/jpeg",
+                  upsert: true,
+                });
 
-          if (uploadError) {
-            throw uploadError;
-          }
+            if (uploadError) {
+              throw uploadError;
+            }
 
-          const { data } =
-            supabase.storage
-              .from("avatars")
-              .getPublicUrl(fileName);
+            const { data } =
+              supabase.storage
+                .from("avatars")
+                .getPublicUrl(fileName);
 
-          const avatarUrl = data.publicUrl;
+            const avatarUrl = data.publicUrl;
 
-          const { data: userData, error: userError } =
-            await supabase.auth.updateUser({
+            const {
+              data: userData,
+              error: userError,
+            } = await supabase.auth.updateUser({
               data: {
                 avatar_url: avatarUrl,
               },
             });
 
-          if (userError) {
-            throw userError;
+            if (userError) {
+              throw userError;
+            }
+
+            if (userData?.user) {
+              setAuthUser(userData.user);
+            }
+
+            setAvatar(avatarUrl);
+
+            Alert.alert(
+              "Готово",
+              "Фото профиля сохранено."
+            );
+          } catch (error) {
+            console.log(
+              "AVATAR UPLOAD ERROR",
+              error
+            );
+
+            Alert.alert(
+              "Ошибка",
+              error?.message ||
+                "Не удалось загрузить фотографию."
+            );
           }
+        };
 
-          if (userData?.user) {
-            setAuthUser(userData.user);
-          }
+        input.click();
+        return;
+      }
 
-          setAvatar(avatarUrl);
+      // =========================
+      // IOS / ANDROID
+      // =========================
+      const ImagePicker =
+        await import("expo-image-picker");
 
-          Alert.alert(
-            "Готово",
-            "Фото профиля сохранено."
-          );
-        } catch (error) {
-          console.log("AVATAR UPLOAD ERROR", error);
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-          Alert.alert(
-            "Ошибка",
-            error?.message ||
-              "Не удалось загрузить фотографию."
-          );
-        }
-      };
+      if (!permission.granted) {
+        Alert.alert(
+          "Нужен доступ",
+          "Разреши PaCook доступ к фотографиям."
+        );
+        return;
+      }
 
-      input.click();
-      return;
-    }
+      const result =
+        await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
 
-    const ImagePicker =
-      await import("expo-image-picker");
+      if (
+        result.canceled ||
+        !result.assets?.[0]?.uri
+      ) {
+        return;
+      }
 
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const imageUri = result.assets[0].uri;
 
-    if (!permission.granted) {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      const fileName =
+        `${authUser.id}-${Date.now()}.jpg`;
+
+      const { error: uploadError } =
+        await supabase.storage
+          .from("avatars")
+          .upload(fileName, blob, {
+            contentType: "image/jpeg",
+            upsert: true,
+          });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } =
+        supabase.storage
+          .from("avatars")
+          .getPublicUrl(fileName);
+
+      const avatarUrl = data.publicUrl;
+
+      const {
+        data: userData,
+        error: userError,
+      } = await supabase.auth.updateUser({
+        data: {
+          avatar_url: avatarUrl,
+        },
+      });
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (userData?.user) {
+        setAuthUser(userData.user);
+      }
+
+      setAvatar(avatarUrl);
+
       Alert.alert(
-        "Нужен доступ",
-        "Разреши PaCook доступ к фотографиям."
+        "Готово",
+        "Фото профиля сохранено."
       );
-      return;
+    } catch (error) {
+      console.log(
+        "AVATAR PICK ERROR",
+        error
+      );
+
+      Alert.alert(
+        "Ошибка",
+        error?.message ||
+          "Не удалось выбрать фотографию."
+      );
     }
-
-    const result =
-      await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-    if (
-      result.canceled ||
-      !result.assets?.[0]?.uri
-    ) {
-      return;
-    }
-
-    imageUri = result.assets[0].uri;
-
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-
-    const fileName =
-      `${authUser.id}-${Date.now()}.jpg`;
-
-    const { error: uploadError } =
-      await supabase.storage
-        .from("avatars")
-        .upload(fileName, blob, {
-          contentType: "image/jpeg",
-          upsert: true,
-        });
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    const { data } =
-      supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
-
-    const avatarUrl = data.publicUrl;
-
-    const { data: userData, error: userError } =
-      await supabase.auth.updateUser({
-        data: {
-          avatar_url: avatarUrl,
-        },
-      });
-
-    if (userError) {
-      throw userError;
-    }
-
-    if (userData?.user) {
-      setAuthUser(userData.user);
-    }
-
-    setAvatar(avatarUrl);
-
-    Alert.alert(
-      "Готово",
-      "Фото профиля сохранено."
-    );
-  } catch (error) {
-    console.log("AVATAR PICK ERROR", error);
-
-    Alert.alert(
-      "Ошибка",
-      error?.message ||
-        "Не удалось выбрать фотографию."
-    );
   }
-}
-
-    const result =
-      await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-    if (
-      result.canceled ||
-      !result.assets?.[0]?.uri
-    ) {
-      return;
-    }
-
-    const imageUri = result.assets[0].uri;
-
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-
-    const fileName =
-      `${authUser.id}-${Date.now()}.jpg`;
-
-    const { error: uploadError } =
-      await supabase.storage
-        .from("avatars")
-        .upload(fileName, blob, {
-          contentType: "image/jpeg",
-          upsert: true,
-        });
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    const { data } =
-      supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
-
-    const avatarUrl = data.publicUrl;
-
-    const { data: userData, error: userError } =
-      await supabase.auth.updateUser({
-        data: {
-          avatar_url: avatarUrl,
-        },
-      });
-
-    if (userError) {
-      throw userError;
-    }
-
-    setAvatar(avatarUrl);
-
-    if (userData?.user) {
-      setAuthUser(userData.user);
-    }
-
-    Alert.alert(
-      "Готово",
-      "Фотография профиля сохранена."
-    );
-  } catch (error) {
-    console.log(
-      "AVATAR UPLOAD ERROR",
-      error
-    );
-
-    Alert.alert(
-      "Ошибка",
-      error?.message ||
-        "Не удалось загрузить фотографию."
-    );
-  }
-}
 
   async function saveProfile() {
     try {
@@ -3370,38 +3312,38 @@ async function pickAvatar() {
           }}
         >
           {/* АВАТАР */}
-<TouchableOpacity
-  onPress={pickAvatar}
-  activeOpacity={0.8}
-  style={{
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 14,
-    overflow: "hidden",
-    backgroundColor: "#E8F2EA",
-    justifyContent: "center",
-    alignItems: "center",
-  }}
->
-  {avatar ? (
-    <Image
-      source={{ uri: avatar }}
-      style={{
-        width: 100,
-        height: 100,
-      }}
-    />
-  ) : (
-    <Text
-      style={{
-        fontSize: 45,
-      }}
-    >
-      👨‍🍳
-    </Text>
-  )}
-</TouchableOpacity>
+          <TouchableOpacity
+            onPress={pickAvatar}
+            activeOpacity={0.8}
+            style={{
+              width: 100,
+              height: 100,
+              borderRadius: 50,
+              marginBottom: 14,
+              overflow: "hidden",
+              backgroundColor: "#E8F2EA",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            {avatar ? (
+              <Image
+                source={{ uri: avatar }}
+                style={{
+                  width: 100,
+                  height: 100,
+                }}
+              />
+            ) : (
+              <Text
+                style={{
+                  fontSize: 45,
+                }}
+              >
+                👨‍🍳
+              </Text>
+            )}
+          </TouchableOpacity>
 
           {!editing ? (
             <>
@@ -3471,36 +3413,31 @@ async function pickAvatar() {
                   borderRadius: 14,
                   padding: 15,
                   fontSize: 16,
-                  marginBottom: 14,
-                }}
-              />
-
-              <Text
-                style={{
-                  alignSelf: "flex-start",
-                  fontSize: 14,
-                  fontWeight: "700",
-                  marginBottom: 8,
-                  color: "#1F2A24",
-                }}
-              >
-                Ссылка на фото
-              </Text>
-
-              <TextInput
-                value={avatar}
-                onChangeText={setAvatar}
-                placeholder="https://..."
-                autoCapitalize="none"
-                style={{
-                  width: "100%",
-                  backgroundColor: "#F5F6F3",
-                  borderRadius: 14,
-                  padding: 15,
-                  fontSize: 16,
                   marginBottom: 16,
                 }}
               />
+
+              <TouchableOpacity
+                onPress={pickAvatar}
+                style={{
+                  width: "100%",
+                  backgroundColor: "#E8F2EA",
+                  padding: 15,
+                  borderRadius: 14,
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#4F8A5B",
+                    fontWeight: "800",
+                    fontSize: 15,
+                  }}
+                >
+                  📷 Изменить фотографию
+                </Text>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={saveProfile}
@@ -3630,6 +3567,8 @@ async function pickAvatar() {
     </SafeAreaView>
   );
 }
+
+
 
   /* =========================================================
      AUTHOR PIN
