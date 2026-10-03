@@ -3065,6 +3065,84 @@ async function logoutUser() {
 
 async function pickAvatar() {
   try {
+    let imageUri = "";
+
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+
+      input.type = "file";
+      input.accept = "image/*";
+
+      input.onchange = async (event) => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        const previewUrl = URL.createObjectURL(file);
+        setAvatar(previewUrl);
+
+        try {
+          const fileName =
+            `${authUser.id}-${Date.now()}.${file.name.split(".").pop() || "jpg"}`;
+
+          const { error: uploadError } =
+            await supabase.storage
+              .from("avatars")
+              .upload(fileName, file, {
+                contentType: file.type || "image/jpeg",
+                upsert: true,
+              });
+
+          if (uploadError) {
+            throw uploadError;
+          }
+
+          const { data } =
+            supabase.storage
+              .from("avatars")
+              .getPublicUrl(fileName);
+
+          const avatarUrl = data.publicUrl;
+
+          const { data: userData, error: userError } =
+            await supabase.auth.updateUser({
+              data: {
+                avatar_url: avatarUrl,
+              },
+            });
+
+          if (userError) {
+            throw userError;
+          }
+
+          if (userData?.user) {
+            setAuthUser(userData.user);
+          }
+
+          setAvatar(avatarUrl);
+
+          Alert.alert(
+            "Готово",
+            "Фото профиля сохранено."
+          );
+        } catch (error) {
+          console.log("AVATAR UPLOAD ERROR", error);
+
+          Alert.alert(
+            "Ошибка",
+            error?.message ||
+              "Не удалось загрузить фотографию."
+          );
+        }
+      };
+
+      input.click();
+      return;
+    }
+
+    const ImagePicker =
+      await import("expo-image-picker");
+
     const permission =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -3075,6 +3153,80 @@ async function pickAvatar() {
       );
       return;
     }
+
+    const result =
+      await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+    if (
+      result.canceled ||
+      !result.assets?.[0]?.uri
+    ) {
+      return;
+    }
+
+    imageUri = result.assets[0].uri;
+
+    const response = await fetch(imageUri);
+    const blob = await response.blob();
+
+    const fileName =
+      `${authUser.id}-${Date.now()}.jpg`;
+
+    const { error: uploadError } =
+      await supabase.storage
+        .from("avatars")
+        .upload(fileName, blob, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } =
+      supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+
+    const avatarUrl = data.publicUrl;
+
+    const { data: userData, error: userError } =
+      await supabase.auth.updateUser({
+        data: {
+          avatar_url: avatarUrl,
+        },
+      });
+
+    if (userError) {
+      throw userError;
+    }
+
+    if (userData?.user) {
+      setAuthUser(userData.user);
+    }
+
+    setAvatar(avatarUrl);
+
+    Alert.alert(
+      "Готово",
+      "Фото профиля сохранено."
+    );
+  } catch (error) {
+    console.log("AVATAR PICK ERROR", error);
+
+    Alert.alert(
+      "Ошибка",
+      error?.message ||
+        "Не удалось выбрать фотографию."
+    );
+  }
+}
 
     const result =
       await ImagePicker.launchImageLibraryAsync({
