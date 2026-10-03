@@ -890,6 +890,7 @@ function Button({
 ========================================================= */
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   if (typeof window !== "undefined") {
   window.onerror = function (
     message,
@@ -927,6 +928,14 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [authUser, setAuthUser] = useState(null);
 const [authChecked, setAuthChecked] = useState(false);
+
+useEffect(() => {
+  const timer = setTimeout(() => {
+    setShowSplash(false);
+  }, 2000);
+
+  return () => clearTimeout(timer);
+}, []);
 
 async function logoutUser() {
   try {
@@ -4920,6 +4929,73 @@ async function logoutUser() {
      SCREEN ROUTER
   ========================================================= */
 
+  if (showSplash) {
+  return (
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: "#F8F7F2",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <View
+        style={{
+          width: 110,
+          height: 110,
+          borderRadius: 32,
+          backgroundColor: "#4F8A5B",
+          justifyContent: "center",
+          alignItems: "center",
+          marginBottom: 24,
+          shadowColor: "#000",
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          shadowOffset: {
+            width: 0,
+            height: 6,
+          },
+          elevation: 5,
+        }}
+      >
+        <Text style={{ fontSize: 52 }}>
+          🍃
+        </Text>
+      </View>
+
+      <Text
+        style={{
+          fontSize: 38,
+          fontWeight: "900",
+          color: "#1F2A24",
+        }}
+      >
+        PaCook
+      </Text>
+
+      <Text
+        style={{
+          marginTop: 8,
+          fontSize: 15,
+          color: "#7A847E",
+        }}
+      >
+        Cook smart. Eat better.
+      </Text>
+
+      <Text
+        style={{
+          position: "absolute",
+          bottom: 40,
+          fontSize: 12,
+          color: "#A0A7A2",
+        }}
+      >
+        Your recipes. Your nutrition.
+      </Text>
+    </SafeAreaView>
+  );
+}
   if (!authChecked) {
   return (
     <SafeAreaView style={styles.safe}>
