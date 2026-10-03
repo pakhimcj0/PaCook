@@ -4941,7 +4941,7 @@ if (showSplash) {
     >
       <Image
   source={{
-    uri: "https://fotovssylku.ru/i/copy-68158ACB-4FF2-40A5-A370-7D76C353E5D0.QYBz5",
+    uri: "https://fotovssylku.ru/i/copy-68158ACB-4FF2-40A5-A370-7D76C353E5D0.Qp1LO",
   }}
   style={{
     width: 180,
