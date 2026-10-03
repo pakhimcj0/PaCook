@@ -4941,7 +4941,7 @@ if (showSplash) {
     >
       <Image
         source={{
-          uri: "https://fotovssylku.ru/i/copy-68158ACB-4FF2-40A5-A370-7D76C353E5D0.Qp1LO",
+          uri: "https://cdn.phototourl.com/member/2026-10-03-c55de25a-aa7f-4025-99cc-62aac826d002.jpg",
         }}
         style={{
           width: 180,
