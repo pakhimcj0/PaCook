@@ -4929,7 +4929,7 @@ async function logoutUser() {
      SCREEN ROUTER
   ========================================================= */
 
-  if (showSplash) {
+if (showSplash) {
   return (
     <SafeAreaView
       style={{
@@ -4939,29 +4939,17 @@ async function logoutUser() {
         alignItems: "center",
       }}
     >
-      <View
-        style={{
-          width: 110,
-          height: 110,
-          borderRadius: 32,
-          backgroundColor: "#4F8A5B",
-          justifyContent: "center",
-          alignItems: "center",
-          marginBottom: 24,
-          shadowColor: "#000",
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-          shadowOffset: {
-            width: 0,
-            height: 6,
-          },
-          elevation: 5,
+      <Image
+        source={{
+          uri: "https://storage.yandexcloud.net/b.fotovssylku.ru/2026/10/03/copy_3F10DF57-165F-4539-8096-73D4D661F51F.md.jpeg",
         }}
-      >
-        <Text style={{ fontSize: 52 }}>
-          🍃
-        </Text>
-      </View>
+        style={{
+          width: 170,
+          height: 170,
+          borderRadius: 38,
+          marginBottom: 24,
+        }}
+      />
 
       <Text
         style={{
