@@ -348,6 +348,154 @@ async function getSupabaseProducts() {
 
   return response.json();
 }
+async function getSupabaseRecipes() {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/recipes?select=*`,
+    {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      errorText ||
+        `Ошибка Supabase recipes: ${response.status}`
+    );
+  }
+
+  return response.json();
+}
+
+async function saveSupabaseProduct(name, data, oldName = null) {
+  if (oldName && oldName !== name) {
+    const deleteResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/products?name=eq.${encodeURIComponent(
+        oldName
+      )}`,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+        },
+      }
+    );
+
+    if (!deleteResponse.ok) {
+      throw new Error(
+        await deleteResponse.text()
+      );
+    }
+  }
+
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/products`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({
+        name,
+        kcal: num(data.kcal),
+        protein: num(data.protein),
+        fat: num(data.fat),
+        carbs: num(data.carbs),
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await response.text()
+    );
+  }
+
+  return response;
+}
+
+async function deleteSupabaseProduct(name) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/products?name=eq.${encodeURIComponent(
+      name
+    )}`,
+    {
+      method: "DELETE",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await response.text()
+    );
+  }
+}
+
+async function saveSupabaseRecipe(recipe) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/recipes`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({
+        id: String(recipe.id),
+        title: recipe.title,
+        category: recipe.category || "Другое",
+        time: num(recipe.time),
+        servings: num(recipe.servings),
+        image: recipe.image || "",
+        description: recipe.description || "",
+        ingredients: recipe.ingredients || [],
+        steps: recipe.steps || [],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await response.text()
+    );
+  }
+
+  return response;
+}
+
+async function deleteSupabaseRecipe(id) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/recipes?id=eq.${encodeURIComponent(
+      String(id)
+    )}`,
+    {
+      method: "DELETE",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await response.text()
+    );
+  }
+}
 
 /* =========================================================
    COLORS
