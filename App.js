@@ -1135,21 +1135,27 @@ async function logoutUser() {
   ========================================================= */
 
  useEffect(() => {
-  async function checkAuth() {
-    try {
-      // 1. Проверяем сохранённую сессию
-      const saved = await AsyncStorage.getItem(
-        "PACOOK_SESSION"
-      );
+  const saved = await AsyncStorage.getItem("PACOOK_SESSION");
 
-      if (saved) {
-        const session = JSON.parse(saved);
+if (saved) {
+  const session = JSON.parse(saved);
 
-        if (session?.user) {
-          setAuthUser(session.user);
-          return;
-        }
-      }
+  if (
+    session?.access_token &&
+    session?.refresh_token
+  ) {
+    const { data, error } =
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+
+    if (!error && data?.user) {
+      setAuthUser(data.user);
+      return;
+    }
+  }
+}
 
       // 2. Если пользователь только что подтвердил email
       // Supabase передаёт access_token и refresh_token
