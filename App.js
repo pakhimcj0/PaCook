@@ -44,6 +44,39 @@ const supabase = createClient(
    REGISTRATION
 ========================================================= */
 
+async function signInSupabase(email, password) {
+  const { data, error } =
+    await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const session = data.session;
+
+  if (!session) {
+    throw new Error("Не удалось создать сессию.");
+  }
+
+  await AsyncStorage.setItem(
+    "PACOOK_SESSION",
+    JSON.stringify({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      user: data.user,
+    })
+  );
+
+  return data;
+}
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
 async function signUpSupabase(email, password) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
@@ -57,22 +90,15 @@ async function signUpSupabase(email, password) {
     throw new Error(error.message);
   }
 
-  return data;
-}
-
-/* =========================================================
-   LOGIN
-========================================================= */
-
-async function signInSupabase(email, password) {
-  const { data, error } =
-    await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
-
-  if (error) {
-    throw new Error(error.message);
+  if (data.session) {
+    await AsyncStorage.setItem(
+      "PACOOK_SESSION",
+      JSON.stringify({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        user: data.user,
+      })
+    );
   }
 
   return data;
