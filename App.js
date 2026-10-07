@@ -26,7 +26,7 @@ import "react-native-url-polyfill/auto";
    SUPABASE
 ========================================================= */
 
-const SUPABASE_URL =
+const SUPA =
   "https://fzjpsrcgmfihpnavnqdc.supabase.co";
 
 const SUPABASE_KEY =
@@ -361,9 +361,13 @@ function AuthScreen({ onAuth }) {
 async function getSupabaseProducts() {
   const { data, error } = await supabase
     .from("products")
-    .select("*");
+    .select("*")
+    .order("name", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.log("GET PRODUCTS ERROR:", error);
+    throw error;
+  }
 
   return data || [];
 }
@@ -371,15 +375,29 @@ async function getSupabaseProducts() {
 async function getSupabaseRecipes() {
   const { data, error } = await supabase
     .from("recipes")
-    .select("*");
+    .select("*")
+    .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    console.log("GET RECIPES ERROR:", error);
+    throw error;
+  }
 
   return data || [];
 }
 
-async function saveSupabaseProduct(name, data, oldName = null) {
-  if (oldName && oldName !== name) {
+async function saveSupabaseProduct(
+  name,
+  data,
+  oldName = null
+) {
+  const cleanName = String(name || "").trim();
+
+  if (!cleanName) {
+    throw new Error("Название продукта пустое.");
+  }
+
+  if (oldName && oldName !== cleanName) {
     const { error } = await supabase
       .from("products")
       .delete()
@@ -388,20 +406,31 @@ async function saveSupabaseProduct(name, data, oldName = null) {
     if (error) throw error;
   }
 
-  const { error } = await supabase
-    .from("products")
-    .upsert(
-      {
-        name,
-        kcal: num(data.kcal),
-        protein: num(data.protein),
-        fat: num(data.fat),
-        carbs: num(data.carbs),
-      },
-      { onConflict: "name" }
-    );
+  const { data: saved, error } =
+    await supabase
+      .from("products")
+      .upsert(
+        {
+          name: cleanName,
+          kcal: num(data.kcal),
+          protein: num(data.protein),
+          fat: num(data.fat),
+          carbs: num(data.carbs),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "name",
+        }
+      )
+      .select()
+      .single();
 
-  if (error) throw error;
+  if (error) {
+    console.log("SAVE PRODUCT ERROR:", error);
+    throw error;
+  }
+
+  return saved;
 }
 
 async function deleteSupabaseProduct(name) {
@@ -414,24 +443,42 @@ async function deleteSupabaseProduct(name) {
 }
 
 async function saveSupabaseRecipe(recipe) {
-  const { error } = await supabase
-    .from("recipes")
-    .upsert(
-      {
-        id: String(recipe.id),
-        title: recipe.title,
-        category: recipe.category || "Другое",
-        time: num(recipe.time),
-        servings: num(recipe.servings),
-        image: recipe.image || "",
-        description: recipe.description || "",
-        ingredients: recipe.ingredients || [],
-        steps: recipe.steps || [],
-      },
-      { onConflict: "id" }
-    );
+  const payload = {
+    id: String(recipe.id),
+    title: String(recipe.title || "").trim(),
+    category: recipe.category || "Другое",
+    time: num(recipe.time),
+    servings: Math.max(1, num(recipe.servings)),
+    image: recipe.image || "",
+    description: recipe.description || "",
+    ingredients: Array.isArray(recipe.ingredients)
+      ? recipe.ingredients
+      : [],
+    steps: Array.isArray(recipe.steps)
+      ? recipe.steps
+      : [],
+    updated_at: new Date().toISOString(),
+  };
 
-  if (error) throw error;
+  if (!payload.title) {
+    throw new Error("Название рецепта пустое.");
+  }
+
+  const { data, error } =
+    await supabase
+      .from("recipes")
+      .upsert(payload, {
+        onConflict: "id",
+      })
+      .select()
+      .single();
+
+  if (error) {
+    console.log("SAVE RECIPE ERROR:", error);
+    throw error;
+  }
+
+  return data;
 }
 
 async function deleteSupabaseRecipe(id) {
@@ -441,6 +488,56 @@ async function deleteSupabaseRecipe(id) {
     .eq("id", String(id));
 
   if (error) throw error;
+}
+
+async function getProfile() {
+  if (!authUser?.id) return null;
+
+  const { data, error } =
+    await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+  if (error) {
+    console.log("GET PROFILE ERROR:", error);
+    return null;
+  }
+
+  return data;
+}
+
+async function saveProfileToSupabase({
+  name,
+  avatarUrl,
+}) {
+  if (!authUser?.id) {
+    throw new Error("Пользователь не авторизован.");
+  }
+
+  const payload = {
+    id: authUser.id,
+    name: name || "PaCook User",
+    avatar_url: avatarUrl || "",
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } =
+    await supabase
+      .from("profiles")
+      .upsert(payload, {
+        onConflict: "id",
+      })
+      .select()
+      .single();
+
+  if (error) {
+    console.log("SAVE PROFILE ERROR:", error);
+    throw error;
+  }
+
+  return data;
 }
 
 /* =========================================================
@@ -1115,60 +1212,121 @@ useEffect(() => {
 }, []);
 
 async function loadData() {
-  let localData = null;
-
   try {
-    const saved = await AsyncStorage.getItem(
-      "PACOOK_DATA"
-    );
+    setLoaded(false);
 
-    if (saved) {
-      localData = JSON.parse(saved);
+    // =========================================
+    // ЛОКАЛЬНЫЕ ДАННЫЕ
+    // =========================================
 
-      if (localData.favorites) {
-        setFavorites(localData.favorites);
+    try {
+      const saved =
+        await AsyncStorage.getItem("PACOOK_DATA");
+
+      if (saved) {
+        const localData = JSON.parse(saved);
+
+        if (Array.isArray(localData.favorites)) {
+          setFavorites(localData.favorites);
+        }
+
+        if (Array.isArray(localData.diary)) {
+          setDiary(localData.diary);
+        }
       }
-
-      if (localData.diary) {
-        setDiary(localData.diary);
-      }
-    }
-  } catch (e) {
-    console.log("LOCAL LOAD ERROR", e);
-  }
-
-  try {
-    const rows = await getSupabaseProducts();
-
-    if (Array.isArray(rows) && rows.length > 0) {
-      const supabaseProducts = {};
-
-      rows.forEach((row) => {
-        if (!row.name) return;
-
-        supabaseProducts[row.name] = {
-          kcal: num(row.kcal),
-          protein: num(row.protein),
-          fat: num(row.fat),
-          carbs: num(row.carbs),
-        };
-      });
-
-      setProducts(supabaseProducts);
-
+    } catch (error) {
       console.log(
-        "SUPABASE PRODUCTS:",
-        rows.length
+        "LOCAL DATA LOAD ERROR:",
+        error
       );
     }
-  } catch (e) {
-    console.log(
-      "SUPABASE PRODUCTS ERROR:",
-      e.message
-    );
-  }
 
-  setLoaded(true);
+    // =========================================
+    // PRODUCTS FROM SUPABASE
+    // =========================================
+
+    const productRows =
+      await getSupabaseProducts();
+
+    const supabaseProducts = {
+      ...INITIAL_PRODUCTS,
+    };
+
+    productRows.forEach((row) => {
+      if (!row?.name) return;
+
+      supabaseProducts[row.name] = {
+        kcal: num(row.kcal),
+        protein: num(row.protein),
+        fat: num(row.fat),
+        carbs: num(row.carbs),
+      };
+    });
+
+    setProducts(supabaseProducts);
+
+    // =========================================
+    // RECIPES FROM SUPABASE
+    // =========================================
+
+    const recipeRows =
+      await getSupabaseRecipes();
+
+    if (
+      Array.isArray(recipeRows) &&
+      recipeRows.length > 0
+    ) {
+      const normalizedRecipes =
+        recipeRows.map((recipe) => ({
+          ...recipe,
+
+          id: String(recipe.id),
+
+          time: num(recipe.time),
+
+          servings: Math.max(
+            1,
+            num(recipe.servings)
+          ),
+
+          ingredients:
+            Array.isArray(recipe.ingredients)
+              ? recipe.ingredients
+              : [],
+
+          steps:
+            Array.isArray(recipe.steps)
+              ? recipe.steps
+              : [],
+        }));
+
+      setRecipes(normalizedRecipes);
+    } else {
+      // Если БД пустая — используем начальные
+      // рецепты только на этом устройстве.
+      setRecipes(INITIAL_RECIPES);
+    }
+
+    console.log(
+      "PACOOK DATABASE LOADED:",
+      {
+        products: productRows.length,
+        recipes: recipeRows.length,
+      }
+    );
+  } catch (error) {
+    console.log(
+      "SUPABASE LOAD ERROR:",
+      error
+    );
+
+    // Если интернет/БД недоступны —
+    // приложение всё равно запускается.
+    setProducts(INITIAL_PRODUCTS);
+    setRecipes(INITIAL_RECIPES);
+  } finally {
+    setLoaded(true);
+  }
 }
   /* =========================================================
      LOCAL SAVE
@@ -3094,13 +3252,26 @@ async function loadData() {
 
   function Profile() {
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(
-    authUser?.user_metadata?.name || ""
-  );
+  const [name, setName] = useState("");
+  const [avatar, setAvatar] = useState("");
+useEffect(() => {
+  async function loadProfile() {
+    try {
+      const profile = await getProfile();
 
-  const [avatar, setAvatar] = useState(
-    authUser?.user_metadata?.avatar_url || ""
-  );
+      if (profile) {
+        setName(profile.name || "");
+        setAvatar(profile.avatar_url || "");
+      }
+    } catch (error) {
+      console.log("PROFILE LOAD ERROR:", error);
+    }
+  }
+
+  if (authUser?.id) {
+    loadProfile();
+  }
+}, [authUser?.id]);
 
   async function pickAvatar() {
     try {
@@ -3151,11 +3322,11 @@ async function loadData() {
             const {
               data: userData,
               error: userError,
-            } = await supabase.auth.updateUser({
-              data: {
-                avatar_url: avatarUrl,
-              },
-            });
+            } = await saveProfileToSupabase({
+  name:
+    name.trim() || "PaCook User",
+  avatarUrl,
+});
 
             if (userError) {
               throw userError;
@@ -3251,11 +3422,11 @@ async function loadData() {
       const {
         data: userData,
         error: userError,
-      } = await supabase.auth.updateUser({
-        data: {
-          avatar_url: avatarUrl,
-        },
-      });
+      } = await saveProfileToSupabase({
+  name:
+    name.trim() || "PaCook User",
+  avatarUrl,
+});
 
       if (userError) {
         throw userError;
@@ -3286,45 +3457,35 @@ async function loadData() {
   }
 
   async function saveProfile() {
-    try {
-      const cleanName =
-        name.trim() || "PaCook User";
+  try {
+    const cleanName =
+      name.trim() || "PaCook User";
 
-      const { data, error } =
-        await supabase.auth.updateUser({
-          data: {
-            name: cleanName,
-            avatar_url: avatar,
-          },
-        });
+    await saveProfileToSupabase({
+      name: cleanName,
+      avatarUrl: avatar,
+    });
 
-      if (error) {
-        throw error;
-      }
+    setName(cleanName);
+    setEditing(false);
 
-      if (data?.user) {
-        setAuthUser(data.user);
-      }
+    Alert.alert(
+      "Готово",
+      "Профиль сохранён."
+    );
+  } catch (error) {
+    console.log(
+      "PROFILE SAVE ERROR",
+      error
+    );
 
-      setEditing(false);
-
-      Alert.alert(
-        "Готово",
-        "Профиль сохранён."
-      );
-    } catch (error) {
-      console.log(
-        "PROFILE SAVE ERROR",
-        error
-      );
-
-      Alert.alert(
-        "Ошибка",
-        error?.message ||
-          "Не удалось сохранить профиль."
-      );
-    }
+    Alert.alert(
+      "Ошибка",
+      error?.message ||
+        "Не удалось сохранить профиль."
+    );
   }
+}
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -3857,33 +4018,37 @@ async function loadData() {
                             style:
                               "destructive",
 
-                            onPress: () =>
-                              setRecipes(
-                                (prev) =>
-                                  prev.filter(
-                                    (r) =>
-                                      r.id !==
-                                      recipe.id
-                                  )
-                              ),
-                          },
-                        ]
-                      );
-                    }}
-                  >
-                    <Text
-                      style={
-                        styles.deleteButtonText
-                      }
-                    >
-                      Удалить
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          );
-        })}
+                            onPress={async () => {
+  try {
+    await deleteSupabaseRecipe(
+      recipe.id
+    );
+
+    setRecipes((prev) =>
+      prev.filter(
+        (r) =>
+          String(r.id) !==
+          String(recipe.id)
+      )
+    );
+
+    Alert.alert(
+      "Готово",
+      "Рецепт удалён."
+    );
+  } catch (error) {
+    console.log(
+      "DELETE RECIPE ERROR:",
+      error
+    );
+
+    Alert.alert(
+      "Ошибка",
+      error?.message ||
+        "Не удалось удалить рецепт."
+    );
+  }
+}}
 
         <Button
           title="Сбросить всё до исходных данных"
@@ -4007,75 +4172,115 @@ async function loadData() {
       }));
     }
 
-    function saveRecipe() {
-      if (!form.title.trim()) {
-        Alert.alert(
-          "Ошибка",
-          "Введи название рецепта."
-        );
+    async function saveRecipe() {
+  if (!form.title.trim()) {
+    Alert.alert(
+      "Ошибка",
+      "Введи название рецепта."
+    );
+    return;
+  }
 
-        return;
-      }
+  const clean = {
+    ...form,
 
-      const clean = {
-        ...form,
+    id: String(form.id),
 
-        title: form.title.trim(),
+    title:
+      form.title.trim(),
 
-        category:
-          form.category.trim() ||
-          "Другое",
+    category:
+      form.category.trim() ||
+      "Другое",
 
-        time: Math.max(
-          1,
-          num(form.time)
-        ),
+    time: Math.max(
+      1,
+      num(form.time)
+    ),
 
-        servings: Math.max(
-          1,
-          num(form.servings)
-        ),
+    servings: Math.max(
+      1,
+      num(form.servings)
+    ),
 
-        ingredients:
-          form.ingredients.filter(
-            (x) =>
-              x.product &&
-              num(x.grams) > 0
-          ),
+    image:
+      form.image ||
+      "",
 
-        steps:
-          form.steps.filter(
-            (x) => x.trim()
-          ),
+    description:
+      form.description ||
+      "",
+
+    ingredients:
+      form.ingredients.filter(
+        (x) =>
+          x.product &&
+          num(x.grams) > 0
+      ),
+
+    steps:
+      form.steps.filter(
+        (x) =>
+          x &&
+          x.trim()
+      ),
+  };
+
+  try {
+    // =========================================
+    // СНАЧАЛА ОБЩАЯ БД
+    // =========================================
+
+    await saveSupabaseRecipe(clean);
+
+    // =========================================
+    // ПОТОМ LOCAL STATE
+    // =========================================
+
+    onPress: async () => {
+  try {
+    await deleteSupabaseProduct(
+      name
+    );
+
+    setProducts((prev) => {
+      const copy = {
+        ...prev,
       };
 
-      setRecipes((prev) => {
-        const exists = prev.some(
-          (r) =>
-            r.id === clean.id
-        );
+      delete copy[name];
 
-        if (exists) {
-          return prev.map((r) =>
-            r.id === clean.id
-              ? clean
-              : r
-          );
-        }
+      return copy;
+    });
 
-        return [
-          clean,
-          ...prev,
-        ];
-      });
+    setRecipes((prev) =>
+      prev.map((recipe) => ({
+        ...recipe,
+        ingredients:
+          recipe.ingredients.filter(
+            (item) =>
+              item.product !== name
+          ),
+      }))
+    );
 
-      setEditingRecipe(null);
+    Alert.alert(
+      "Готово",
+      "Продукт удалён из общей базы."
+    );
+  } catch (error) {
+    console.log(
+      "DELETE PRODUCT ERROR:",
+      error
+    );
 
-      Alert.alert(
-        "Сохранено",
-        "Рецепт обновлён."
-      );
-    }
+    Alert.alert(
+      "Ошибка",
+      error?.message ||
+        "Не удалось удалить продукт."
+    );
+  }
+}
 
     const preview =
       calculateRecipe(
@@ -4629,89 +4834,116 @@ async function loadData() {
       }));
     }
 
-    function saveProduct() {
-      const name =
-        form.name.trim();
+    async function saveProduct() {
+  const name = form.name.trim();
 
-      if (!name) {
-        Alert.alert(
-          "Ошибка",
-          "Введи название продукта."
-        );
+  if (!name) {
+    Alert.alert(
+      "Ошибка",
+      "Введи название продукта."
+    );
+    return;
+  }
 
-        return;
-      }
+  const data = {
+    kcal: num(form.kcal),
+    protein: num(form.protein),
+    fat: num(form.fat),
+    carbs: num(form.carbs),
+  };
 
-      const data = {
-        kcal: num(form.kcal),
-        protein: num(
-          form.protein
-        ),
-        fat: num(form.fat),
-        carbs: num(
-          form.carbs
-        ),
+  const oldName = product.name;
+
+  try {
+    // =========================================
+    // СНАЧАЛА СОХРАНЯЕМ В SUPABASE
+    // =========================================
+
+    await saveSupabaseProduct(
+      name,
+      data,
+      oldName
+    );
+
+    // =========================================
+    // ОБНОВЛЯЕМ LOCAL STATE
+    // =========================================
+
+    setProducts((prev) => {
+      const copy = {
+        ...prev,
       };
-
-      const oldName =
-        product.name;
-
-      setProducts((prev) => {
-        const copy = {
-          ...prev,
-        };
-
-        if (
-          !isNew &&
-          oldName !== name
-        ) {
-          delete copy[oldName];
-        }
-
-        copy[name] = data;
-
-        return copy;
-      });
-
-      /*
-        Если название продукта изменилось,
-        обновляем все рецепты.
-      */
 
       if (
         !isNew &&
         oldName !== name
       ) {
-        setRecipes(
-          (recipesPrev) =>
-            recipesPrev.map(
-              (recipe) => ({
-                ...recipe,
-
-                ingredients:
-                  recipe.ingredients.map(
-                    (item) =>
-                      item.product ===
-                      oldName
-                        ? {
-                            ...item,
-                            product:
-                              name,
-                          }
-                        : item
-                  ),
-              })
-            )
-        );
+        delete copy[oldName];
       }
 
-      setEditingProduct(null);
+      copy[name] = data;
 
-      Alert.alert(
-        "Сохранено",
-        "Продукт добавлен."
-      );
+      return copy;
+    });
+
+    // =========================================
+    // ЕСЛИ ПЕРЕИМЕНОВАЛИ ПРОДУКТ —
+    // ОБНОВЛЯЕМ РЕЦЕПТЫ
+    // =========================================
+
+    if (
+      !isNew &&
+      oldName !== name
+    ) {
+      const updatedRecipes =
+        recipes.map((recipe) => ({
+          ...recipe,
+          ingredients:
+            recipe.ingredients.map(
+              (item) =>
+                item.product === oldName
+                  ? {
+                      ...item,
+                      product: name,
+                    }
+                  : item
+            ),
+        }));
+
+      setRecipes(updatedRecipes);
+
+      // Сохраняем изменённые рецепты
+      for (const recipe of updatedRecipes) {
+        if (
+          recipe.ingredients.some(
+            (item) =>
+              item.product === name
+          )
+        ) {
+          await saveSupabaseRecipe(recipe);
+        }
+      }
     }
+
+    setEditingProduct(null);
+
+    Alert.alert(
+      "Готово",
+      "Продукт сохранён в общей базе PaCook."
+    );
+  } catch (error) {
+    console.log(
+      "SAVE PRODUCT ERROR:",
+      error
+    );
+
+    Alert.alert(
+      "Ошибка",
+      error?.message ||
+        "Не удалось сохранить продукт."
+    );
+  }
+}
 
     return (
       <KeyboardAvoidingView
