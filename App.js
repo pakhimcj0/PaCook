@@ -4665,163 +4665,168 @@ useEffect(() => {
   ========================================================= */
 
   function AuthorProducts() {
-    if (editingProduct) {
-      return (
-        <ProductEditor
-          product={editingProduct}
-          onClose={() =>
-            setEditingProduct(null)
-          }
-        />
-      );
-    }
-
+  if (editingProduct) {
     return (
-      <ScrollView
-        contentContainerStyle={
-          styles.authorContent
+      <ProductEditor
+        product={editingProduct}
+        onClose={() =>
+          setEditingProduct(null)
         }
-      >
-        <Button
-          title="＋ Новый продукт"
-          onPress={() =>
-            setEditingProduct({
-              name: "",
-              kcal: 0,
-              protein: 0,
-              fat: 0,
-              carbs: 0,
-            })
-          }
-        />
-
-        <Text
-          style={
-            styles.adminSectionTitle
-          }
-        >
-          База продуктов
-        </Text>
-
-        {Object.entries(products).map(
-          ([name, data]) => (
-            <View
-              key={name}
-              style={
-                styles.productAdminCard
-              }
-            >
-              <View
-                style={{ flex: 1 }}
-              >
-                <Text
-                  style={
-                    styles.adminTitle
-                  }
-                >
-                  {name}
-                </Text>
-
-                <Text
-                  style={
-                    styles.adminMeta
-                  }
-                >
-                  {data.kcal} ккал · Б{" "}
-                  {data.protein} · Ж{" "}
-                  {data.fat} · У{" "}
-                  {data.carbs}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={
-                  styles.editSmall
-                }
-                onPress={() =>
-                  setEditingProduct({
-                    name,
-                    ...data,
-                  })
-                }
-              >
-                <Text>✎</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={
-                  styles.deleteSmall
-                }
-                onPress={() => {
-                  Alert.alert(
-                    "Удалить продукт?",
-                    name,
-                    [
-                      {
-                        text: "Отмена",
-                        style:
-                          "cancel",
-                      },
-
-                      {
-                        text: "Удалить",
-                        style:
-                          "destructive",
-                    
-                onPress: async () => {
-  try {
-    // Сначала удаляем из общей базы Supabase
-    await deleteSupabaseProduct(name);
-
-    // Потом удаляем локально
-    setProducts((prev) => {
-      const copy = {
-        ...prev,
-      };
-
-      delete copy[name];
-
-      return copy;
-    });
-
-    // Убираем продукт из ингредиентов рецептов
-    setRecipes((recipesPrev) =>
-      recipesPrev.map((recipe) => ({
-        ...recipe,
-        ingredients: recipe.ingredients.filter(
-          (item) => item.product !== name
-        ),
-      }))
-    );
-
-    Alert.alert(
-      "Готово",
-      "Продукт удалён из общей базы."
-    );
-  } catch (error) {
-    console.log(
-      "DELETE PRODUCT ERROR:",
-      error
-    );
-
-        Alert.alert(
-      "Ошибка",
-      error?.message ||
-        "Не удалось удалить продукт."
+      />
     );
   }
-},
-      },
-    ],
+
+  return (
+    <ScrollView
+      contentContainerStyle={
+        styles.authorContent
+      }
+    >
+      <Button
+        title="＋ Новый продукт"
+        onPress={() =>
+          setEditingProduct({
+            name: "",
+            kcal: 0,
+            protein: 0,
+            fat: 0,
+            carbs: 0,
+          })
+        }
+      />
+
+      <Text
+        style={
+          styles.adminSectionTitle
+        }
+      >
+        База продуктов
+      </Text>
+
+      {Object.entries(products).map(
+        ([name, data]) => (
+          <View
+            key={name}
+            style={
+              styles.productAdminCard
+            }
+          >
+            <View
+              style={{ flex: 1 }}
+            >
+              <Text
+                style={
+                  styles.adminTitle
+                }
+              >
+                {name}
+              </Text>
+
+              <Text
+                style={
+                  styles.adminMeta
+                }
+              >
+                {data.kcal} ккал · Б{" "}
+                {data.protein} · Ж{" "}
+                {data.fat} · У{" "}
+                {data.carbs}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={
+                styles.editSmall
+              }
+              onPress={() =>
+                setEditingProduct({
+                  name,
+                  ...data,
+                })
+              }
+            >
+              <Text>✎</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={
+                styles.deleteSmall
+              }
+              onPress={() => {
+                Alert.alert(
+                  "Удалить продукт?",
+                  name,
+                  [
+                    {
+                      text: "Отмена",
+                      style: "cancel",
+                    },
+                    {
+                      text: "Удалить",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          // Сначала удаляем из общей базы Supabase
+                          await deleteSupabaseProduct(
+                            name
+                          );
+
+                          // Потом удаляем локально
+                          setProducts((prev) => {
+                            const copy = {
+                              ...prev,
+                            };
+
+                            delete copy[name];
+
+                            return copy;
+                          });
+
+                          // Убираем продукт из ингредиентов рецептов
+                          setRecipes(
+                            (recipesPrev) =>
+                              recipesPrev.map(
+                                (recipe) => ({
+                                  ...recipe,
+                                  ingredients:
+                                    recipe.ingredients.filter(
+                                      (item) =>
+                                        item.product !==
+                                        name
+                                    ),
+                                })
+                              )
+                          );
+
+                          Alert.alert(
+                            "Готово",
+                            "Продукт удалён из общей базы."
+                          );
+                        } catch (error) {
+                          console.log(
+                            "DELETE PRODUCT ERROR:",
+                            error
+                          );
+
+                          Alert.alert(
+                            "Ошибка",
+                            error?.message ||
+                              "Не удалось удалить продукт."
+                          );
+                        }
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Text>×</Text>
+            </TouchableOpacity>
+          </View>
+        )
+      )}
+    </ScrollView>
   );
-}}
->
-  <Text>×</Text>
-</TouchableOpacity>
-</View>
-)}
-</ScrollView>
-);
 }
 
 /* =========================================================
@@ -4829,20 +4834,20 @@ useEffect(() => {
 ========================================================= */
 
 function ProductEditor({
-    product,
-    onClose,
-  }) {
-    const [form, setForm] =
-      useState(product);
+  product,
+  onClose,
+}) {
+  const [form, setForm] =
+    useState(product);
 
-    const isNew = !product.name;
+  const isNew = !product.name;
 
-    function update(key, value) {
-      setForm((prev) => ({
-        ...prev,
-        [key]: value,
-      }));
-    }
+  function update(key, value) {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  }
 
     async function saveProduct() {
   const name = form.name.trim();
