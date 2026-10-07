@@ -26,7 +26,7 @@ import "react-native-url-polyfill/auto";
    SUPABASE
 ========================================================= */
 
-const SUPA =
+const SUPABASE_URL =
   "https://fzjpsrcgmfihpnavnqdc.supabase.co";
 
 const SUPABASE_KEY =
