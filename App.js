@@ -3879,185 +3879,197 @@ useEffect(() => {
   ========================================================= */
 
   function AuthorRecipes() {
-    if (editingRecipe) {
-      return (
-        <RecipeEditor
-          recipe={editingRecipe}
-          onClose={() =>
-            setEditingRecipe(null)
-          }
-        />
-      );
-    }
-
+  if (editingRecipe) {
     return (
-      <ScrollView
-        contentContainerStyle={
-          styles.authorContent
+      <RecipeEditor
+        recipe={editingRecipe}
+        onClose={() =>
+          setEditingRecipe(null)
         }
-      >
-        <Button
-          title="＋ Новый рецепт"
-          onPress={() =>
-            setEditingRecipe({
-              id: String(Date.now()),
-              title: "",
-              category: "Завтраки",
-              time: 15,
-              servings: 1,
-              image:
-                "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=900",
-              description: "",
-              ingredients: [
-                {
-                  product:
-                    Object.keys(
-                      products
-                    )[0] || "",
-                  grams: 100,
-                },
-              ],
-              steps: [""],
-            })
-          }
-        />
-
-        <Text
-          style={styles.adminSectionTitle}
-        >
-          Твои рецепты
-        </Text>
-
-        {recipes.map((recipe) => {
-          const macros =
-            calculateRecipe(
-              recipe,
-              products
-            );
-
-          return (
-            <View
-              key={recipe.id}
-              style={styles.adminCard}
-            >
-              <Image
-                source={{
-                  uri: recipe.image,
-                }}
-                style={styles.adminImage}
-              />
-
-              <View
-                style={{ flex: 1 }}
-              >
-                <Text
-                  style={styles.adminTitle}
-                >
-                  {recipe.title}
-                </Text>
-
-                <Text
-                  style={styles.adminMeta}
-                >
-                  {recipe.category} ·{" "}
-                  {
-                    macros.perServing
-                      .kcal
-                  }{" "}
-                  ккал
-                </Text>
-
-                <View
-                  style={styles.adminActions}
-                >
-                  <TouchableOpacity
-                    style={
-                      styles.editButton
-                    }
-                    onPress={() =>
-                      setEditingRecipe({
-                        ...recipe,
-                        ingredients:
-                          recipe.ingredients.map(
-                            (x) => ({
-                              ...x,
-                            })
-                          ),
-                        steps: [
-                          ...recipe.steps,
-                        ],
-                      })
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.editButtonText
-                      }
-                    >
-                      Изменить
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={
-                      styles.deleteButton
-                    }
-                    onPress={() => {
-                      Alert.alert(
-                        "Удалить рецепт?",
-                        recipe.title,
-                        [
-                          {
-                            text: "Отмена",
-                            style:
-                              "cancel",
-                          },
-
-                          { 
-  text: "Удалить",
-  style: "destructive",
-
-  onPress: async () => {
-    try {
-      await deleteSupabaseRecipe(
-        recipe.id
-      );
-
-      setRecipes((prev) =>
-        prev.filter(
-          (r) =>
-            String(r.id) !==
-            String(recipe.id)
-        )
-      );
-
-      Alert.alert(
-        "Готово",
-        "Рецепт удалён."
-      );
-    } catch (error) {
-      console.log(
-        "DELETE RECIPE ERROR:",
-        error
-      );
-
-      Alert.alert(
-        "Ошибка",
-        error?.message ||
-          "Не удалось удалить рецепт."
-      );
-    }
-  },
-}
-        <Button
-          title="Сбросить всё до исходных данных"
-          secondary
-          danger
-          onPress={resetData}
-        />
-      </ScrollView>
+      />
     );
   }
+
+  return (
+    <ScrollView
+      contentContainerStyle={
+        styles.authorContent
+      }
+    >
+      <Button
+        title="＋ Новый рецепт"
+        onPress={() =>
+          setEditingRecipe({
+            id: String(Date.now()),
+            title: "",
+            category: "Завтраки",
+            time: 15,
+            servings: 1,
+            image:
+              "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=900",
+            description: "",
+            ingredients: [
+              {
+                product:
+                  Object.keys(products)[0] || "",
+                grams: 100,
+              },
+            ],
+            steps: [""],
+          })
+        }
+      />
+
+      <Text
+        style={styles.adminSectionTitle}
+      >
+        Твои рецепты
+      </Text>
+
+      {recipes.map((recipe) => {
+        const macros =
+          calculateRecipe(
+            recipe,
+            products
+          );
+
+        return (
+          <View
+            key={recipe.id}
+            style={styles.adminCard}
+          >
+            <Image
+              source={{
+                uri: recipe.image,
+              }}
+              style={styles.adminImage}
+            />
+
+            <View
+              style={{ flex: 1 }}
+            >
+              <Text
+                style={styles.adminTitle}
+              >
+                {recipe.title}
+              </Text>
+
+              <Text
+                style={styles.adminMeta}
+              >
+                {recipe.category} ·{" "}
+                {macros.perServing.kcal} ккал
+              </Text>
+
+              <View
+                style={styles.adminActions}
+              >
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() =>
+                    setEditingRecipe({
+                      ...recipe,
+                      ingredients:
+                        recipe.ingredients.map(
+                          (x) => ({
+                            ...x,
+                          })
+                        ),
+                      steps: [
+                        ...recipe.steps,
+                      ],
+                    })
+                  }
+                >
+                  <Text
+                    style={
+                      styles.editButtonText
+                    }
+                  >
+                    Изменить
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={
+                    styles.deleteButton
+                  }
+                  onPress={() => {
+                    Alert.alert(
+                      "Удалить рецепт?",
+                      recipe.title,
+                      [
+                        {
+                          text: "Отмена",
+                          style: "cancel",
+                        },
+                        {
+                          text: "Удалить",
+                          style: "destructive",
+                          onPress: async () => {
+                            try {
+                              await deleteSupabaseRecipe(
+                                recipe.id
+                              );
+
+                              setRecipes(
+                                (prev) =>
+                                  prev.filter(
+                                    (r) =>
+                                      String(
+                                        r.id
+                                      ) !==
+                                      String(
+                                        recipe.id
+                                      )
+                                  )
+                              );
+
+                              Alert.alert(
+                                "Готово",
+                                "Рецепт удалён."
+                              );
+                            } catch (error) {
+                              console.log(
+                                "DELETE RECIPE ERROR:",
+                                error
+                              );
+
+                              Alert.alert(
+                                "Ошибка",
+                                error?.message ||
+                                  "Не удалось удалить рецепт."
+                              );
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Text
+                    style={
+                      styles.deleteButtonText
+                    }
+                  >
+                    Удалить
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        );
+      })}
+
+      <Button
+        title="Сбросить всё до исходных данных"
+        secondary
+        danger
+        onPress={resetData}
+      />
+    </ScrollView>
+  );
+}
 
   /* =========================================================
      RECIPE EDITOR
