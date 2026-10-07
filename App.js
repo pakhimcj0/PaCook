@@ -4767,8 +4767,8 @@ useEffect(() => {
                         text: "Удалить",
                         style:
                           "destructive",
-
-                   onPress: async () => {
+                    
+                onPress: async () => {
   try {
     // Сначала удаляем из общей базы Supabase
     await deleteSupabaseProduct(name);
@@ -4788,11 +4788,9 @@ useEffect(() => {
     setRecipes((recipesPrev) =>
       recipesPrev.map((recipe) => ({
         ...recipe,
-        ingredients:
-          recipe.ingredients.filter(
-            (item) =>
-              item.product !== name
-          ),
+        ingredients: recipe.ingredients.filter(
+          (item) => item.product !== name
+        ),
       }))
     );
 
@@ -4806,16 +4804,16 @@ useEffect(() => {
       error
     );
 
-    Alert.alert(
+        Alert.alert(
       "Ошибка",
       error?.message ||
         "Не удалось удалить продукт."
     );
   }
 },
-},
-],
-);
+      },
+    ],
+  );
 }}
 >
   <Text>×</Text>
