@@ -1081,72 +1081,111 @@ function Button({
 ========================================================= */
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
-  if (typeof window !== "undefined") {
-  window.onerror = function (
-    message,
-    source,
-    lineno,
-    colno,
-    error
-  ) {
-    alert(
-      "PaCook ERROR:\n\n" +
-      message +
-      "\n\n" +
-      (error?.stack || "")
-    );
-  };
-}
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
-  const [recipes, setRecipes] = useState(INITIAL_RECIPES);
+  const [showSplash, setShowSplash] =
+    useState(true);
 
-  const [screen, setScreen] = useState("home");
-  const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [products, setProducts] =
+    useState(INITIAL_PRODUCTS);
 
-  const [favorites, setFavorites] = useState([]);
-  const [diary, setDiary] = useState([]);
+  const [recipes, setRecipes] =
+    useState(INITIAL_RECIPES);
 
-  const [authorUnlocked, setAuthorUnlocked] = useState(false);
-  const [authorTab, setAuthorTab] = useState("recipes");
+  const [screen, setScreen] =
+    useState("home");
 
-  const [editingRecipe, setEditingRecipe] = useState(null);
-  const [editingProduct, setEditingProduct] = useState(null);
+  const [selectedRecipe, setSelectedRecipe] =
+    useState(null);
 
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("Все");
+  const [favorites, setFavorites] =
+    useState([]);
 
-  const [loaded, setLoaded] = useState(false);
-  const [authUser, setAuthUser] = useState(null);
-const [authChecked, setAuthChecked] = useState(false);
+  const [diary, setDiary] =
+    useState([]);
 
-useEffect(() => {
-  const timer = setTimeout(() => {
-    setShowSplash(false);
-  }, 2000);
+  const [authorUnlocked, setAuthorUnlocked] =
+    useState(false);
 
-  return () => clearTimeout(timer);
-}, []);
+  const [authorTab, setAuthorTab] =
+    useState("recipes");
 
-async function logoutUser() {
-  try {
-    await AsyncStorage.removeItem("PACOOK_SESSION");
+  const [editingRecipe, setEditingRecipe] =
+    useState(null);
 
-    await supabase.auth.signOut();
+  const [editingProduct, setEditingProduct] =
+    useState(null);
 
-    setAuthUser(null);
-    setAuthorUnlocked(false);
-    setScreen("home");
-  } catch (error) {
-    console.log("LOGOUT ERROR", error);
+  const [search, setSearch] =
+    useState("");
 
-    await AsyncStorage.removeItem("PACOOK_SESSION");
+  const [category, setCategory] =
+    useState("Все");
 
-    setAuthUser(null);
-    setAuthorUnlocked(false);
-    setScreen("home");
+  const [loaded, setLoaded] =
+    useState(false);
+
+  const [authUser, setAuthUser] =
+    useState(null);
+
+  const [authChecked, setAuthChecked] =
+    useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.onerror = function (
+        message,
+        source,
+        lineno,
+        colno,
+        error
+      ) {
+        alert(
+          "PaCook ERROR:\n\n" +
+            message +
+            "\n\n" +
+            (error?.stack || "")
+        );
+      };
+    }
+
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2000);
+
+    return () => {
+      clearTimeout(timer);
+
+      if (typeof window !== "undefined") {
+        window.onerror = null;
+      }
+    };
+  }, []);
+
+  async function logoutUser() {
+    try {
+      await AsyncStorage.removeItem(
+        "PACOOK_SESSION"
+      );
+
+      await supabase.auth.signOut();
+
+      setAuthUser(null);
+      setAuthorUnlocked(false);
+      setScreen("home");
+    } catch (error) {
+      console.log(
+        "LOGOUT ERROR",
+        error
+      );
+
+      await AsyncStorage.removeItem(
+        "PACOOK_SESSION"
+      );
+
+      setAuthUser(null);
+      setAuthorUnlocked(false);
+      setScreen("home");
+    }
   }
-}
   /* =========================================================
      LOAD
   ========================================================= */
