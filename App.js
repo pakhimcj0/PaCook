@@ -4018,7 +4018,7 @@ useEffect(() => {
                             style:
                               "destructive",
 
-                            onPress={async () => {
+                            onPress: async () => {
   try {
     await deleteSupabaseRecipe(
       recipe.id
