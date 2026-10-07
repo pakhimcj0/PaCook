@@ -4248,47 +4248,38 @@ useEffect(() => {
     // ПОТОМ LOCAL STATE
     // =========================================
 
-    onPress: async () => {
-  try {
-    await deleteSupabaseProduct(
-      name
-    );
+        setRecipes((prev) => {
+      const exists = prev.some(
+        (r) => String(r.id) === String(clean.id)
+      );
 
-    setProducts((prev) => {
-      const copy = {
-        ...prev,
-      };
+      if (exists) {
+        return prev.map((r) =>
+          String(r.id) === String(clean.id)
+            ? clean
+            : r
+        );
+      }
 
-      delete copy[name];
-
-      return copy;
+      return [clean, ...prev];
     });
 
-    setRecipes((prev) =>
-      prev.map((recipe) => ({
-        ...recipe,
-        ingredients:
-          recipe.ingredients.filter(
-            (item) =>
-              item.product !== name
-          ),
-      }))
-    );
+    setEditingRecipe(null);
 
     Alert.alert(
       "Готово",
-      "Продукт удалён из общей базы."
+      "Рецепт сохранён в общей базе PaCook."
     );
   } catch (error) {
     console.log(
-      "DELETE PRODUCT ERROR:",
+      "SAVE RECIPE ERROR:",
       error
     );
 
     Alert.alert(
       "Ошибка",
       error?.message ||
-        "Не удалось удалить продукт."
+        "Не удалось сохранить рецепт."
     );
   }
 }
@@ -4777,53 +4768,51 @@ useEffect(() => {
                         style:
                           "destructive",
 
-                        onPress: () => {
-                          setProducts(
-                            (prev) => {
-                              const copy =
-                                {
-                                  ...prev,
-                                };
+                   onPress: async () => {
+  try {
+    // Сначала удаляем из общей базы Supabase
+    await deleteSupabaseProduct(name);
 
-                              delete copy[
-                                name
-                              ];
+    // Потом удаляем локально
+    setProducts((prev) => {
+      const copy = {
+        ...prev,
+      };
 
-                              return copy;
-                            }
-                          );
+      delete copy[name];
 
-                          setRecipes(
-                            (recipesPrev) =>
-                              recipesPrev.map(
-                                (recipe) => ({
-                                  ...recipe,
+      return copy;
+    });
 
-                                  ingredients:
-                                    recipe.ingredients.filter(
-                                      (
-                                        item
-                                      ) =>
-                                        item.product !==
-                                        name
-                                    ),
-                                })
-                              )
-                          );
-                        },
-                      },
-                    ]
-                  );
-                }}
-              >
-                <Text>×</Text>
-              </TouchableOpacity>
-            </View>
-          )
-        )}
-      </ScrollView>
+    // Убираем продукт из ингредиентов рецептов
+    setRecipes((recipesPrev) =>
+      recipesPrev.map((recipe) => ({
+        ...recipe,
+        ingredients:
+          recipe.ingredients.filter(
+            (item) =>
+              item.product !== name
+          ),
+      }))
+    );
+
+    Alert.alert(
+      "Готово",
+      "Продукт удалён из общей базы."
+    );
+  } catch (error) {
+    console.log(
+      "DELETE PRODUCT ERROR:",
+      error
+    );
+
+    Alert.alert(
+      "Ошибка",
+      error?.message ||
+        "Не удалось удалить продукт."
     );
   }
+},
 
   /* =========================================================
      PRODUCT EDITOR
