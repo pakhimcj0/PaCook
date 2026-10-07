@@ -4013,43 +4013,42 @@ useEffect(() => {
                               "cancel",
                           },
 
-                          {
-                            text: "Удалить",
-                            style:
-                              "destructive",
+                          { 
+  text: "Удалить",
+  style: "destructive",
 
-                            onPress: async () => {
-  try {
-    await deleteSupabaseRecipe(
-      recipe.id
-    );
+  onPress: async () => {
+    try {
+      await deleteSupabaseRecipe(
+        recipe.id
+      );
 
-    setRecipes((prev) =>
-      prev.filter(
-        (r) =>
-          String(r.id) !==
-          String(recipe.id)
-      )
-    );
+      setRecipes((prev) =>
+        prev.filter(
+          (r) =>
+            String(r.id) !==
+            String(recipe.id)
+        )
+      );
 
-    Alert.alert(
-      "Готово",
-      "Рецепт удалён."
-    );
-  } catch (error) {
-    console.log(
-      "DELETE RECIPE ERROR:",
-      error
-    );
+      Alert.alert(
+        "Готово",
+        "Рецепт удалён."
+      );
+    } catch (error) {
+      console.log(
+        "DELETE RECIPE ERROR:",
+        error
+      );
 
-    Alert.alert(
-      "Ошибка",
-      error?.message ||
-        "Не удалось удалить рецепт."
-    );
-  }
-}}
-
+      Alert.alert(
+        "Ошибка",
+        error?.message ||
+          "Не удалось удалить рецепт."
+      );
+    }
+  },
+}
         <Button
           title="Сбросить всё до исходных данных"
           secondary
