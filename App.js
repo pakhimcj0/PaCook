@@ -16222,4 +16222,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 6,
   },
-});
+ });
+}
