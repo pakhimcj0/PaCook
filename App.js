@@ -5153,238 +5153,259 @@ function RecipeCard({
   favorite,
   onFavorite,
 }) {
-  const nutrition =
-    useMemo(
-      () =>
-        calculateRecipeNutrition(
-          recipe,
-          products
-        ),
-      [
+  const nutrition = useMemo(
+    () =>
+      calculateRecipeNutrition(
         recipe,
-        products,
-      ]
-    );
-
+        products
+      ),
+    [
+      recipe,
+      products,
+    ]
+  );
 
   return (
-    <TouchableOpacity
-      activeOpacity={
-        0.9
-      }
-
-      onPress={
-        onPress
-      }
-
+    <View
       style={{
-        backgroundColor:
-          COLORS.card,
-
-        borderRadius:
-          20,
-
-        overflow:
-          "hidden",
-
-        borderWidth:
-          1,
-
-        borderColor:
-          COLORS.border,
-
-        marginBottom:
-          14,
+        backgroundColor: COLORS.card,
+        borderRadius: 20,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        marginBottom: 14,
       }}
     >
-      <View
+      <Pressable
+        onPress={onPress}
         style={{
-          height:
-            170,
-
-          position:
-            "relative",
+          width: "100%",
         }}
       >
-        <ImageWithFallback
-          uri={
-            recipe?.image
-          }
-
+        <View
           style={{
-            width:
-              "100%",
-
-            height:
-              "100%",
-          }}
-
-          fallback="🍲"
-        />
-
-
-        <TouchableOpacity
-          onPress={(event) => {
-            event?.stopPropagation?.();
-
-            onFavorite?.();
-          }}
-
-          style={{
-            position:
-              "absolute",
-
-            top:
-              12,
-
-            right:
-              12,
-
-            width:
-              40,
-
-            height:
-              40,
-
-            borderRadius:
-              20,
-
-            alignItems:
-              "center",
-
-            justifyContent:
-              "center",
-
-            backgroundColor:
-              "rgba(255,255,255,0.9)",
+            height: 170,
+            position: "relative",
           }}
         >
-          <Text
+          <ImageWithFallback
+            uri={
+              recipe?.image ||
+              recipe?.image_url
+            }
             style={{
-              fontSize:
-                20,
+              width: "100%",
+              height: "100%",
             }}
-          >
-            {favorite
-              ? "♥️"
-              : "♡"}
-          </Text>
-        </TouchableOpacity>
+            fallback="🍲"
+          />
 
-
-        {recipe?.pro ? (
-          <View
+          <Pressable
+            onPress={(event) => {
+              event?.stopPropagation?.();
+              onFavorite?.();
+            }}
             style={{
-              position:
-                "absolute",
-
-              left:
-                12,
-
-              top:
-                12,
-
+              position: "absolute",
+              top: 12,
+              right: 12,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: "center",
+              justifyContent: "center",
               backgroundColor:
-                COLORS.green,
-
-              paddingHorizontal:
-                10,
-
-              paddingVertical:
-                6,
-
-              borderRadius:
-                999,
+                "rgba(255,255,255,0.92)",
             }}
           >
             <Text
               style={{
-                color:
-                  COLORS.white,
-
-                fontWeight:
-                  "800",
-
-                fontSize:
-                  12,
+                fontSize: 20,
               }}
             >
-              PRO
+              {favorite
+                ? "♥️"
+                : "♡"}
             </Text>
+          </Pressable>
+        </View>
+
+        <View
+          style={{
+            padding: 16,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 8,
+            }}
+          >
+            <Text
+              style={{
+                color: COLORS.muted,
+                fontSize: 12,
+                fontWeight: "700",
+              }}
+            >
+              {recipe?.category ||
+                "Другое"}
+            </Text>
+
+            {recipe?.pro ? (
+              <View
+                style={{
+                  backgroundColor:
+                    COLORS.lightGreen,
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                  borderRadius: 10,
+                }}
+              >
+                <Text
+                  style={{
+                    color: COLORS.green,
+                    fontSize: 11,
+                    fontWeight: "900",
+                  }}
+                >
+                  PRO
+                </Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
-      </View>
 
+          <Text
+            style={{
+              color: COLORS.text,
+              fontSize: 19,
+              fontWeight: "800",
+              marginBottom: 7,
+            }}
+          >
+            {recipe?.title ||
+              recipe?.name ||
+              "Рецепт"}
+          </Text>
 
-      <View
-        style={{
-          padding:
-            16,
-        }}
-      >
-        <Text
-          style={{
-            color:
-              COLORS.text,
+          {!!recipe?.description && (
+            <Text
+              numberOfLines={2}
+              style={{
+                color: COLORS.muted,
+                fontSize: 13,
+                lineHeight: 19,
+                marginBottom: 10,
+              }}
+            >
+              {recipe.description}
+            </Text>
+          )}
 
-            fontSize:
-              18,
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor:
+                  COLORS.lightGreen,
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 6,
+              }}
+            >
+              <Text
+                style={{
+                  color: COLORS.green,
+                  fontSize: 12,
+                  fontWeight: "800",
+                }}
+              >
+                {Math.round(
+                  nutrition?.kcal || 0
+                )}{" "}
+                ккал
+              </Text>
+            </View>
 
-            fontWeight:
-              "800",
-          }}
-        >
-          {recipe?.title ||
-            "Без названия"}
-        </Text>
+            <View
+              style={{
+                backgroundColor:
+                  "#F1EFE8",
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 6,
+              }}
+            >
+              <Text
+                style={{
+                  color: COLORS.text,
+                  fontSize: 12,
+                  fontWeight: "700",
+                }}
+              >
+                Б{" "}
+                {Math.round(
+                  nutrition?.protein || 0
+                )} г
+              </Text>
+            </View>
 
+            <View
+              style={{
+                backgroundColor:
+                  "#F1EFE8",
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 6,
+              }}
+            >
+              <Text
+                style={{
+                  color: COLORS.text,
+                  fontSize: 12,
+                  fontWeight: "700",
+                }}
+              >
+                Ж{" "}
+                {Math.round(
+                  nutrition?.fat || 0
+                )} г
+              </Text>
+            </View>
 
-        <Text
-          style={{
-            color:
-              COLORS.muted,
-
-            marginTop:
-              5,
-
-            fontSize:
-              13,
-          }}
-        >
-          {recipe?.category ||
-            "Другое"}
-          {" • "}
-          {recipe?.time ||
-            0}{" "}
-          мин
-          {" • "}
-          {recipe?.servings ||
-            1}{" "}
-          пор.
-        </Text>
-
-
-        <Text
-          style={{
-            color:
-              COLORS.text,
-
-            marginTop:
-              10,
-
-            fontWeight:
-              "700",
-          }}
-        >
-          {roundNutrition(
-            nutrition
-              .perServing
-              .kcal
-          )}{" "}
-          ккал / порция
-        </Text>
-      </View>
-    </TouchableOpacity>
+            <View
+              style={{
+                backgroundColor:
+                  "#F1EFE8",
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 6,
+              }}
+            >
+              <Text
+                style={{
+                  color: COLORS.text,
+                  fontSize: 12,
+                  fontWeight: "700",
+                }}
+              >
+                У{" "}
+                {Math.round(
+                  nutrition?.carbs || 0
+                )} г
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Pressable>
+    </View>
   );
 }
 
