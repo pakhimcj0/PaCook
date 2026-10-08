@@ -11104,122 +11104,130 @@ function renderProductsScreen() {
           их в своих рецептах.
         </Text>
       </View>
+      
       {Object.keys(
-        grouped
-      ).map(
-        (category) => (
-          <View
+  grouped
+).map(
+  (category) => (
+    <View
+      key={
+        category
+      }
+    >
+      <SectionTitle
+        title={
+          category
+        }
+      />
+
+      {grouped[
+        category
+      ].map(
+        (product) => (
+          <Pressable
             key={
-              category
+              product.id ||
+              product.name
+            }
+            onPress={() =>
+              openProduct(
+                product
+              )
+            }
+            style={
+              styles.productCard
             }
           >
-            <SectionTitle
-              title={
-                category
+            <View
+              style={
+                styles.productIcon
               }
-            />
-            {grouped[
-              category
-            ].map(
-              (product) => (
-              <Pressable
-  key={
-    product.id ||
-    product.name
-  }
-  onPress={() =>
-    openProduct(product)
-  }
-  style={
-    styles.productCard
-  }
->
-  <View
-    style={
-      styles.productIcon
-    }
-  >
-    <Text
-      style={{
-        fontSize: 25,
-      }}
-    >
-      {getProductEmoji(
-        product
-      )}
-    </Text>
-  </View>
+            >
+              <Text
+                style={{
+                  fontSize: 25,
+                }}
+              >
+                {getProductEmoji(
+                  product
+                )}
+              </Text>
+            </View>
 
-  <View
-    style={
-      styles.productMain
-    }
-  >
-    <Text
-      style={
-        styles.productName
-      }
-    >
-      {product.name}
-    </Text>
+            <View
+              style={
+                styles.productMain
+              }
+            >
+              <Text
+                style={
+                  styles.productName
+                }
+              >
+                {
+                  product.name
+                }
+              </Text>
 
-    <Text
-      style={
-        styles.productKcal
-      }
-    >
-      {Math.round(
-        Number(
-          product.kcal
-        ) || 0
-      )}{" "}
-      ккал / 100 г
-    </Text>
+              <Text
+                style={
+                  styles.productKcal
+                }
+              >
+                {Math.round(
+                  Number(
+                    product.kcal
+                  ) || 0
+                )}{" "}
+                ккал / 100 г
+              </Text>
 
-    <View
-      style={
-        styles.productMacros
-      }
-    >
-      <Text
-        style={
-          styles.productMacroText
-        }
-      >
-        Б{" "}
-        {Number(
-          product.protein
-        ) || 0}
-      </Text>
+              <View
+                style={
+                  styles.productMacros
+                }
+              >
+                <Text
+                  style={
+                    styles.productMacroText
+                  }
+                >
+                  Б{" "}
+                  {Number(
+                    product.protein
+                  ) || 0}
+                </Text>
 
-      <Text
-        style={
-          styles.productMacroText
-        }
-      >
-        Ж{" "}
-        {Number(
-          product.fat
-        ) || 0}
-      </Text>
+                <Text
+                  style={
+                    styles.productMacroText
+                  }
+                >
+                  Ж{" "}
+                  {Number(
+                    product.fat
+                  ) || 0}
+                </Text>
 
-      <Text
-        style={
-          styles.productMacroText
-        }
-      >
-        У{" "}
-        {Number(
-          product.carbs
-        ) || 0}
-      </Text>
-    </View>
-  </View>
-</Pressable>
-   )}
-          </View>
+                <Text
+                  style={
+                    styles.productMacroText
+                  }
+                >
+                  У{" "}
+                  {Number(
+                    product.carbs
+                  ) || 0}
+                </Text>
+              </View>
+            </View>
+          </Pressable>
         )
       )}
+    </View>
+  )
+)}
+  
       {filteredProductsArray.length ===
         0 && (
         <EmptyState
@@ -11546,42 +11554,100 @@ function renderDiaryScreen() {
       label: "Вс",
     },
   ];
+
   const recipesArray =
     Array.isArray(recipes)
       ? recipes
       : [];
+
   const productsArray =
     ensureProductsArray(
       products
     );
+
   const currentDiaryArray =
-    Array.isArray(
-      currentDayDiary
-    )
+    Array.isArray(currentDayDiary)
       ? currentDayDiary
       : [];
+
   const target =
     Number(
       settings?.diaryTargets?.[
         String(diaryDay)
       ]
     ) || 0;
+
   const mealLabels = [
     "Завтрак",
     "Обед",
     "Ужин",
     "Перекус",
   ];
+
+  const currentDayLabel =
+    days.find(
+      (day) =>
+        Number(day.id) ===
+        Number(diaryDay)
+    )?.label || "";
+
+  const calories =
+    Math.round(
+      Number(
+        currentDayCalories
+      ) || 0
+    );
+
+  const protein =
+    Math.round(
+      Number(
+        currentDayMacros?.protein
+      ) || 0
+    );
+
+  const fat =
+    Math.round(
+      Number(
+        currentDayMacros?.fat
+      ) || 0
+    );
+
+  const carbs =
+    Math.round(
+      Number(
+        currentDayMacros?.carbs
+      ) || 0
+    );
+
+  const progress =
+    target > 0
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            (calories / target) *
+              100
+          )
+        )
+      : 0;
+
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={
-        styles.scrollContent
-      }
+      contentContainerStyle={[
+        styles.scrollContent,
+        {
+          paddingBottom: 120,
+        },
+      ]}
       showsVerticalScrollIndicator={
         false
       }
     >
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <AppHeader
         title="Дневник"
         subtitle="Твой план питания"
@@ -11589,147 +11655,403 @@ function renderDiaryScreen() {
           goProfile
         }
       />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={
-          false
-        }
-        contentContainerStyle={{
-          paddingRight: 20,
+
+      {/* =====================================================
+          DAYS
+      ===================================================== */}
+
+      <View
+        style={{
+          marginTop: 4,
+          marginBottom: 18,
         }}
       >
-        {days.map(
-          (day) => {
-            const active =
-              Number(
-                diaryDay
-              ) ===
-              Number(
-                day.id
-              );
-            return (
-              <Pressable
-                key={
-                  day.id
-                }
-                onPress={() =>
-                  setDiaryDay(
-                    day.id
-                  )
-                }
-                style={[
-                  styles.dayPill,
-                  active &&
-                    styles.dayPillActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dayPillText,
-                    active &&
-                      styles.dayPillTextActive,
-                  ]}
-                >
-                  {
-                    day.label
-                  }
-                </Text>
-              </Pressable>
-            );
-          }
-        )}
-      </ScrollView>
-      <View
-        style={
-          styles.diarySummaryCard
-        }
-      >
         <Text
-          style={
-            styles.diarySummaryTitle
-          }
+          style={{
+            fontSize: 13,
+            fontWeight: "700",
+            color: "#7A817C",
+            marginBottom: 10,
+            paddingHorizontal: 2,
+          }}
         >
-          Цель на день
+          ДЕНЬ НЕДЕЛИ
         </Text>
-        <View
-          style={
-            styles.diaryCaloriesRow
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={
+            false
           }
+          contentContainerStyle={{
+            paddingRight: 20,
+          }}
+        >
+          {days.map(
+            (day) => {
+              const active =
+                Number(
+                  diaryDay
+                ) ===
+                Number(
+                  day.id
+                );
+
+              return (
+                <Pressable
+                  key={
+                    day.id
+                  }
+                  onPress={() =>
+                    setDiaryDay(
+                      day.id
+                    )
+                  }
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 16,
+                    marginRight: 8,
+                    alignItems:
+                      "center",
+                    justifyContent:
+                      "center",
+                    backgroundColor:
+                      active
+                        ? "#345C48"
+                        : "#FFFDF8",
+                    borderWidth: 1,
+                    borderColor:
+                      active
+                        ? "#345C48"
+                        : "#E6E1D6",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight:
+                        "800",
+                      color:
+                        active
+                          ? "#FFFFFF"
+                          : "#1D2922",
+                    }}
+                  >
+                    {
+                      day.label
+                    }
+                  </Text>
+                </Pressable>
+              );
+            }
+          )}
+        </ScrollView>
+      </View>
+
+      {/* =====================================================
+          DAILY SUMMARY
+      ===================================================== */}
+
+      <View
+        style={{
+          backgroundColor:
+            "#345C48",
+          borderRadius: 24,
+          padding: 20,
+          marginBottom: 22,
+        }}
+      >
+        <View
+          style={{
+            flexDirection:
+              "row",
+            justifyContent:
+              "space-between",
+            alignItems:
+              "flex-start",
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  "#E5EEE7",
+                fontSize: 13,
+                fontWeight:
+                  "700",
+                marginBottom: 5,
+              }}
+            >
+              {currentDayLabel}
+            </Text>
+
+            <Text
+              style={{
+                color:
+                  "#FFFFFF",
+                fontSize: 24,
+                fontWeight:
+                  "800",
+              }}
+            >
+              Дневной итог
+            </Text>
+          </View>
+
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 16,
+              backgroundColor:
+                "rgba(255,255,255,0.14)",
+              alignItems:
+                "center",
+              justifyContent:
+                "center",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 23,
+              }}
+            >
+              🔥
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={{
+            marginTop: 22,
+            flexDirection:
+              "row",
+            alignItems:
+              "flex-end",
+          }}
         >
           <Text
-            style={
-              styles.diaryCalories
-            }
+            style={{
+              color:
+                "#FFFFFF",
+              fontSize: 38,
+              fontWeight:
+                "900",
+              lineHeight: 42,
+            }}
           >
-            {Math.round(
-              currentDayCalories
-            )}
+            {calories}
           </Text>
+
           <Text
-            style={
-              styles.diaryCaloriesUnit
-            }
+            style={{
+              color:
+                "#DDE9E1",
+              fontSize: 15,
+              fontWeight:
+                "600",
+              marginBottom: 5,
+              marginLeft: 7,
+            }}
           >
             / {target || "—"} ккал
           </Text>
         </View>
+
         <View
-          style={
-            styles.progressTrack
-          }
+          style={{
+            height: 8,
+            backgroundColor:
+              "rgba(255,255,255,0.18)",
+            borderRadius: 10,
+            marginTop: 14,
+            overflow:
+              "hidden",
+          }}
         >
           <View
-            style={[
-              styles.progressFill,
-              {
-                width:
-                  target > 0
-                    ? `${Math.min(
-                        100,
-                        Math.max(
-                          0,
-                          (currentDayCalories /
-                            target) *
-                            100
-                        )
-                      )}%`
-                    : "0%",
-              },
-            ]}
+            style={{
+              height: "100%",
+              width:
+                `${progress}%`,
+              backgroundColor:
+                "#FFFFFF",
+              borderRadius: 10,
+            }}
           />
         </View>
+
         <View
-          style={
-            styles.diaryMacroGrid
-          }
+          style={{
+            flexDirection:
+              "row",
+            marginTop: 20,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderTopColor:
+              "rgba(255,255,255,0.15)",
+          }}
         >
-          <MacroRow
-            label="Белки"
-            value={`${Math.round(
-              currentDayMacros?.protein ||
-                0
-            )} г`}
-          />
-          <MacroRow
-            label="Жиры"
-            value={`${Math.round(
-              currentDayMacros?.fat ||
-                0
-            )} г`}
-          />
-          <MacroRow
-            label="Углеводы"
-            value={`${Math.round(
-              currentDayMacros?.carbs ||
-                0
-            )} г`}
-          />
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  "#BFD2C6",
+                fontSize: 12,
+                marginBottom: 4,
+              }}
+            >
+              Белки
+            </Text>
+
+            <Text
+              style={{
+                color:
+                  "#FFFFFF",
+                fontSize: 17,
+                fontWeight:
+                  "800",
+              }}
+            >
+              {protein} г
+            </Text>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  "#BFD2C6",
+                fontSize: 12,
+                marginBottom: 4,
+              }}
+            >
+              Жиры
+            </Text>
+
+            <Text
+              style={{
+                color:
+                  "#FFFFFF",
+                fontSize: 17,
+                fontWeight:
+                  "800",
+              }}
+            >
+              {fat} г
+            </Text>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  "#BFD2C6",
+                fontSize: 12,
+                marginBottom: 4,
+              }}
+            >
+              Углеводы
+            </Text>
+
+            <Text
+              style={{
+                color:
+                  "#FFFFFF",
+                fontSize: 17,
+                fontWeight:
+                  "800",
+              }}
+            >
+              {carbs} г
+            </Text>
+          </View>
         </View>
+      </View>
+
+      {/* =====================================================
+          CALORIE TARGET
+      ===================================================== */}
+
+      <View
+        style={{
+          backgroundColor:
+            "#FFFDF8",
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor:
+            "#E6E1D6",
+          padding: 16,
+          marginBottom: 24,
+        }}
+      >
+        <View
+          style={{
+            flexDirection:
+              "row",
+            alignItems:
+              "center",
+            marginBottom: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 20,
+              marginRight: 9,
+            }}
+          >
+            🎯
+          </Text>
+
+          <Text
+            style={{
+              color:
+                "#1D2922",
+              fontSize: 16,
+              fontWeight:
+                "800",
+            }}
+          >
+            Цель на {currentDayLabel}
+          </Text>
+        </View>
+
+        <Text
+          style={{
+            color:
+              "#7A817C",
+            fontSize: 12,
+            marginBottom: 10,
+            marginLeft: 29,
+          }}
+        >
+          Калорийная цель
+        </Text>
+
         <FormInput
-          label="Калорийная цель"
+          label=""
           value={
             target
-              ? String(target)
+              ? String(
+                  target
+                )
               : ""
           }
           onChangeText={(
@@ -11744,18 +12066,54 @@ function renderDiaryScreen() {
           placeholder="Например, 2200"
         />
       </View>
-      <SectionTitle
-        title={`Питание — ${
-          days.find(
-            (day) =>
-              day.id ===
-              Number(
-                diaryDay
-              )
-          )?.label ||
-          ""
-        }`}
-      />
+
+      {/* =====================================================
+          MEALS HEADER
+      ===================================================== */}
+
+      <View
+        style={{
+          flexDirection:
+            "row",
+          alignItems:
+            "center",
+          justifyContent:
+            "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <View>
+          <Text
+            style={{
+              color:
+                "#1D2922",
+              fontSize: 22,
+              fontWeight:
+                "900",
+            }}
+          >
+            Питание
+          </Text>
+
+          <Text
+            style={{
+              color:
+                "#7A817C",
+              fontSize: 13,
+              marginTop: 3,
+            }}
+          >
+            {currentDayLabel} ·{" "}
+            {currentDiaryArray.length}{" "}
+            приёмов
+          </Text>
+        </View>
+      </View>
+
+      {/* =====================================================
+          MEALS
+      ===================================================== */}
+
       {currentDiaryArray.length >
       0 ? (
         currentDiaryArray.map(
@@ -11770,6 +12128,7 @@ function renderDiaryScreen() {
                     item?.recipeId
                   )
               );
+
             const nutrition =
               recipe
                 ? calculateRecipeNutrition(
@@ -11777,179 +12136,388 @@ function renderDiaryScreen() {
                     productsArray
                   )
                 : null;
+
+            const mealIcon =
+              item.meal ===
+              "Завтрак"
+                ? "☀️"
+                : item.meal ===
+                  "Обед"
+                ? "🍲"
+                : item.meal ===
+                  "Ужин"
+                ? "🌙"
+                : "🍎";
+
+            const mealKcal =
+              Math.round(
+                Number(
+                  nutrition
+                    ?.perServing
+                    ?.kcal ??
+                    nutrition
+                      ?.kcal ??
+                    0
+                )
+              );
+
             return (
               <View
                 key={
                   item.id
                 }
-                style={
-                  styles.diaryMealCard
-                }
+                style={{
+                  backgroundColor:
+                    "#FFFDF8",
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor:
+                    "#E6E1D6",
+                  padding: 15,
+                  marginBottom: 10,
+                }}
               >
                 <View
-                  style={
-                    styles.diaryMealIcon
-                  }
+                  style={{
+                    flexDirection:
+                      "row",
+                    alignItems:
+                      "center",
+                  }}
                 >
-                  <Text
+                  <View
                     style={{
-                      fontSize: 24,
+                      width: 52,
+                      height: 52,
+                      borderRadius: 17,
+                      backgroundColor:
+                        "#E5EEE7",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
+                      marginRight: 13,
                     }}
                   >
-                    {item.meal ===
-                    "Завтрак"
-                      ? "☀️"
-                      : item.meal ===
-                        "Обед"
-                      ? "🍲"
-                      : item.meal ===
-                        "Ужин"
-                      ? "🌙"
-                      : "🍎"}
-                  </Text>
-                </View>
-                <View
-                  style={
-                    styles.diaryMealMain
-                  }
-                >
-                  <Text
-                    style={
-                      styles.diaryMealType
-                    }
-                  >
-                    {
-                      item.meal
-                    }
-                    {item.time
-                      ? ` · ${item.time}`
-                      : ""}
-                  </Text>
-                  <Text
-                    style={
-                      styles.diaryMealName
-                    }
-                  >
-                    {recipe?.title ||
-                      recipe?.name ||
-                      "Рецепт удалён"}
-                  </Text>
-                  {nutrition && (
                     <Text
-                      style={
-                        styles.diaryMealKcal
+                      style={{
+                        fontSize: 24,
+                      }}
+                    >
+                      {
+                        mealIcon
+                      }
+                    </Text>
+                  </View>
+
+                  <View
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          "#527966",
+                        fontSize: 12,
+                        fontWeight:
+                          "800",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {item.meal}
+                      {item.time
+                        ? ` · ${item.time}`
+                        : ""}
+                    </Text>
+
+                    <Text
+                      style={{
+                        color:
+                          "#1D2922",
+                        fontSize: 16,
+                        fontWeight:
+                          "800",
+                      }}
+                      numberOfLines={
+                        2
                       }
                     >
-                      {Math.round(
-                        nutrition?.perServing
-                          ?.kcal ??
-                          nutrition?.kcal ??
-                          0
-                      )}{" "}
-                      ккал
+                      {recipe?.title ||
+                        recipe?.name ||
+                        "Рецепт удалён"}
                     </Text>
-                  )}
-                </View>
-                <View
-                  style={
-                    styles.diaryMealActions
-                  }
-                >
-                  <Pressable
-                    onPress={() =>
-                      startEditDiaryMeal(
-                        item
-                      )
-                    }
-                    style={
-                      styles.iconButton
-                    }
+
+                    <Text
+                      style={{
+                        color:
+                          "#7A817C",
+                        fontSize: 13,
+                        marginTop: 5,
+                        fontWeight:
+                          "600",
+                      }}
+                    >
+                      {mealKcal} ккал
+                    </Text>
+                  </View>
+
+                  <View
+                    style={{
+                      flexDirection:
+                        "row",
+                      marginLeft: 8,
+                    }}
                   >
-                    <Text>
-                      ✏️
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() =>
-                      removeDiaryMeal(
-                        item
-                      )
-                    }
-                    style={
-                      styles.iconButton
-                    }
-                  >
-                    <Text>
-                      🗑️
-                    </Text>
-                  </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        startEditDiaryMeal(
+                          item
+                        )
+                      }
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 13,
+                        backgroundColor:
+                          "#F7F4EC",
+                        alignItems:
+                          "center",
+                        justifyContent:
+                          "center",
+                        marginRight: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 16,
+                        }}
+                      >
+                        ✏️
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() =>
+                        removeDiaryMeal(
+                          item
+                        )
+                      }
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 13,
+                        backgroundColor:
+                          "#FCEDEC",
+                        alignItems:
+                          "center",
+                        justifyContent:
+                          "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 16,
+                        }}
+                      >
+                        🗑️
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             );
           }
         )
       ) : (
-        <EmptyState
-          title="Нет приёмов пищи"
-          text="Добавь рецепт в план на этот день."
-        />
+        <View
+          style={{
+            backgroundColor:
+              "#FFFDF8",
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor:
+              "#E6E1D6",
+            padding: 25,
+            alignItems:
+              "center",
+            marginBottom: 24,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 38,
+              marginBottom: 10,
+            }}
+          >
+            🍽️
+          </Text>
+
+          <Text
+            style={{
+              color:
+                "#1D2922",
+              fontSize: 17,
+              fontWeight:
+                "800",
+              textAlign:
+                "center",
+            }}
+          >
+            Пока пусто
+          </Text>
+
+          <Text
+            style={{
+              color:
+                "#7A817C",
+              fontSize: 13,
+              textAlign:
+                "center",
+              marginTop: 5,
+            }}
+          >
+            Добавь первый приём пищи
+            на этот день
+          </Text>
+        </View>
       )}
-      <SectionTitle
-        title={
-          editingDiaryId
-            ? "Изменить приём пищи"
-            : "Добавить приём пищи"
-        }
-      />
+
+      {/* =====================================================
+          ADD / EDIT MEAL
+      ===================================================== */}
+
       <View
-        style={
-          styles.formCard
-        }
+        style={{
+          marginTop: 10,
+          marginBottom: 10,
+        }}
       >
         <Text
-          style={
-            styles.formLabel
-          }
+          style={{
+            color:
+              "#1D2922",
+            fontSize: 22,
+            fontWeight:
+              "900",
+          }}
+        >
+          {editingDiaryId
+            ? "Изменить приём"
+            : "Добавить приём"}
+        </Text>
+
+        <Text
+          style={{
+            color:
+              "#7A817C",
+            fontSize: 13,
+            marginTop: 3,
+            marginBottom: 12,
+          }}
+        >
+          Выбери тип, время и рецепт
+        </Text>
+      </View>
+
+      <View
+        style={{
+          backgroundColor:
+            "#FFFDF8",
+          borderRadius: 22,
+          borderWidth: 1,
+          borderColor:
+            "#E6E1D6",
+          padding: 16,
+          marginBottom: 20,
+        }}
+      >
+        <Text
+          style={{
+            color:
+              "#1D2922",
+            fontSize: 14,
+            fontWeight:
+              "800",
+            marginBottom: 10,
+          }}
         >
           Приём пищи
         </Text>
+
         <View
-          style={
-            styles.mealTypeGrid
-          }
+          style={{
+            flexDirection:
+              "row",
+            flexWrap:
+              "wrap",
+            marginBottom: 17,
+          }}
         >
           {mealLabels.map(
-            (meal) => (
-              <Pressable
-                key={
-                  meal
-                }
-                onPress={() =>
-                  setDiaryMeal(
+            (meal) => {
+              const active =
+                diaryMeal ===
+                meal;
+
+              return (
+                <Pressable
+                  key={
                     meal
-                  )
-                }
-                style={[
-                  styles.mealTypeButton,
-                  diaryMeal ===
-                    meal &&
-                    styles.mealTypeButtonActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.mealTypeText,
-                    diaryMeal ===
-                      meal &&
-                      styles.mealTypeTextActive,
-                  ]}
+                  }
+                  onPress={() =>
+                    setDiaryMeal(
+                      meal
+                    )
+                  }
+                  style={{
+                    width:
+                      "48%",
+                    minHeight: 44,
+                    borderRadius: 13,
+                    borderWidth: 1,
+                    borderColor:
+                      active
+                        ? "#345C48"
+                        : "#E6E1D6",
+                    backgroundColor:
+                      active
+                        ? "#345C48"
+                        : "#F7F4EC",
+                    alignItems:
+                      "center",
+                    justifyContent:
+                      "center",
+                    marginRight:
+                      meal ===
+                      "Завтрак" ||
+                      meal ===
+                      "Ужин"
+                        ? "4%"
+                        : 0,
+                    marginBottom: 8,
+                  }}
                 >
-                  {meal}
-                </Text>
-              </Pressable>
-            )
+                  <Text
+                    style={{
+                      color:
+                        active
+                          ? "#FFFFFF"
+                          : "#1D2922",
+                      fontSize: 13,
+                      fontWeight:
+                        "800",
+                    }}
+                  >
+                    {meal}
+                  </Text>
+                </Pressable>
+              );
+            }
           )}
         </View>
+
         <FormInput
           label="Время"
           value={
@@ -11960,21 +12528,36 @@ function renderDiaryScreen() {
           }
           placeholder="Например, 08:30"
         />
+
         <Text
-          style={
-            styles.formLabel
-          }
+          style={{
+            color:
+              "#1D2922",
+            fontSize: 14,
+            fontWeight:
+              "800",
+            marginTop: 5,
+            marginBottom: 10,
+          }}
         >
           Рецепт
         </Text>
+
         <View
-          style={
-            styles.recipeSelectBox
-          }
+          style={{
+            borderWidth: 1,
+            borderColor:
+              "#E6E1D6",
+            borderRadius: 16,
+            backgroundColor:
+              "#F7F4EC",
+            overflow:
+              "hidden",
+          }}
         >
           <ScrollView
             style={{
-              maxHeight: 220,
+              maxHeight: 230,
             }}
             nestedScrollEnabled
           >
@@ -11987,6 +12570,7 @@ function renderDiaryScreen() {
                   String(
                     recipe.id
                   );
+
                 return (
                   <Pressable
                     key={
@@ -11997,38 +12581,90 @@ function renderDiaryScreen() {
                         recipe.id
                       )
                     }
-                    style={[
-                      styles.recipeSelectItem,
-                      active &&
-                        styles.recipeSelectItemActive,
-                    ]}
+                    style={{
+                      minHeight: 54,
+                      paddingHorizontal: 13,
+                      paddingVertical: 8,
+                      flexDirection:
+                        "row",
+                      alignItems:
+                        "center",
+                      borderBottomWidth: 1,
+                      borderBottomColor:
+                        "#E6E1D6",
+                      backgroundColor:
+                        active
+                          ? "#E5EEE7"
+                          : "transparent",
+                    }}
                   >
-                    <Text
-                      style={
-                        styles.recipeSelectEmoji
-                      }
+                    <View
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 11,
+                        backgroundColor:
+                          "#FFFDF8",
+                        alignItems:
+                          "center",
+                        justifyContent:
+                          "center",
+                        marginRight: 10,
+                      }}
                     >
-                      🍽️
-                    </Text>
-                    <Text
-                      style={[
-                        styles.recipeSelectText,
-                        active &&
-                          styles.recipeSelectTextActive,
-                      ]}
-                      numberOfLines={
-                        1
-                      }
-                    >
-                      {
-                        recipe.title ||
-                        recipe.name
-                      }
-                    </Text>
-                    {active && (
                       <Text>
-                        ✓
+                        🍽️
                       </Text>
+                    </View>
+
+                    <Text
+                      style={{
+                        flex: 1,
+                        color:
+                          active
+                            ? "#345C48"
+                            : "#1D2922",
+                        fontSize: 14,
+                        fontWeight:
+                          active
+                            ? "800"
+                            : "600",
+                      }}
+                      numberOfLines={
+                        2
+                      }
+                    >
+                      {recipe.title ||
+                        recipe.name}
+                    </Text>
+
+                    {active && (
+                      <View
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor:
+                            "#345C48",
+                          alignItems:
+                            "center",
+                          justifyContent:
+                            "center",
+                          marginLeft: 8,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              "#FFFFFF",
+                            fontSize: 14,
+                            fontWeight:
+                              "900",
+                          }}
+                        >
+                          ✓
+                        </Text>
+                      </View>
                     )}
                   </Pressable>
                 );
@@ -12036,39 +12672,54 @@ function renderDiaryScreen() {
             )}
           </ScrollView>
         </View>
-        <PrimaryButton
-          title={
-            editingDiaryId
-              ? "Сохранить изменения"
-              : "Добавить в дневник"
-          }
-          onPress={
-            editingDiaryId
-              ? updateDiaryMeal
-              : addDiaryMeal
-          }
-        />
-        {editingDiaryId && (
-          <SecondaryButton
-            title="Отмена"
-            onPress={() => {
-              setEditingDiaryId(
-                null
-              );
-              setDiaryRecipeId(
-                ""
-              );
-              setDiaryTime(
-                ""
-              );
-            }}
+
+        <View
+          style={{
+            marginTop: 16,
+          }}
+        >
+          <PrimaryButton
+            title={
+              editingDiaryId
+                ? "Сохранить изменения"
+                : "Добавить в дневник"
+            }
+            onPress={
+              editingDiaryId
+                ? updateDiaryMeal
+                : addDiaryMeal
+            }
           />
+        </View>
+
+        {editingDiaryId && (
+          <View
+            style={{
+              marginTop: 8,
+            }}
+          >
+            <SecondaryButton
+              title="Отмена"
+              onPress={() => {
+                setEditingDiaryId(
+                  null
+                );
+                setDiaryRecipeId(
+                  ""
+                );
+                setDiaryTime(
+                  ""
+                );
+              }}
+            />
+          </View>
         )}
       </View>
+
       <View
-        style={
-          styles.bottomSpacer
-        }
+        style={{
+          height: 30,
+        }}
       />
     </ScrollView>
   );
