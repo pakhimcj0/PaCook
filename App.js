@@ -12004,641 +12004,364 @@ export default function App() {
   // RECIPE EDITOR
   // ============================================================
 
-  function renderAuthorRecipeScreen() {
-    const editing =
-      Boolean(
-        editingRecipeId
-      );
+function renderAuthorRecipeScreen() {
+  const editing = Boolean(editingRecipeId);
 
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
-        keyboardShouldPersistTaps="handled"
-      >
-        <View
-          style={
-            styles.simpleTopBar
-          }
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.simpleTopBar}>
+        <Pressable
+          onPress={() => setScreen("author")}
+          style={styles.backButton}
         >
-          <Pressable
-            onPress={() =>
-              setScreen(
-                "author"
-              )
-            }
-            style={
-              styles.backButton
-            }
-          >
-            <Text
-              style={
-                styles.backButtonText
-              }
-            >
-              ‹
-            </Text>
-          </Pressable>
+          <Text style={styles.backButtonText}>‹</Text>
+        </Pressable>
 
-          <Text
-            style={
-              styles.simpleTopTitle
-            }
-          >
-            {editing
-              ? "Изменить рецепт"
-              : "Новый рецепт"}
-          </Text>
+        <Text style={styles.simpleTopTitle}>
+          {editing ? "Изменить рецепт" : "Новый рецепт"}
+        </Text>
 
-          <View
-            style={{
-              width: 42,
-            }}
-          />
-        </View>
+        <View style={{ width: 42 }} />
+      </View>
 
-        <View
-          style={
-            styles.formCard
+      <View style={styles.formCard}>
+        <FormInput
+          label="Название рецепта"
+          value={recipeForm.title}
+          onChangeText={(value) =>
+            setRecipeForm((current) => ({
+              ...current,
+              title: value,
+            }))
           }
-        >
-          <FormInput
-            label="Название рецепта"
-            value={
-              recipeForm.title
-            }
-            onChangeText={(
-              value
-            ) =>
-              setRecipeForm(
-                (current) => ({
-                  ...current,
-                  title: value,
-                })
-              )
-            }
-            placeholder="Например, Синабоны"
-          />
+          placeholder="Например, Синабоны"
+        />
 
-          <FormInput
-            label="Категория"
-            value={
-              recipeForm.category
-            }
-            onChangeText={(
-              value
-            ) =>
-              setRecipeForm(
-                (current) => ({
-                  ...current,
-                  category:
-                    value,
-                })
-              )
-            }
-            placeholder="Выпечка"
-          />
+        <FormInput
+          label="Категория"
+          value={recipeForm.category}
+          onChangeText={(value) =>
+            setRecipeForm((current) => ({
+              ...current,
+              category: value,
+            }))
+          }
+          placeholder="Выпечка"
+        />
 
-          <FormInput
-            label="Описание"
-            value={
-              recipeForm.description
-            }
-            onChangeText={(
-              value
-            ) =>
-              setRecipeForm(
-                (current) => ({
-                  ...current,
-                  description:
-                    value,
-                })
-              )
-            }
-            placeholder="Коротко о рецепте"
-            multiline
-          />
+        <FormInput
+          label="Описание"
+          value={recipeForm.description}
+          onChangeText={(value) =>
+            setRecipeForm((current) => ({
+              ...current,
+              description: value,
+            }))
+          }
+          placeholder="Коротко о рецепте"
+          multiline
+        />
 
-          <FormInput
-            label="Фото рецепта"
-            value={
-              recipeForm.image
-            }
-            onChangeText={(
-              value
-            ) =>
-              setRecipeForm(
-                (current) => ({
-                  ...current,
-                  image: value,
-                })
-              )
-            }
-            placeholder="https://..."
-            autoCapitalize="none"
-            keyboardType="url"
-          />
+        <FormInput
+          label="Фото рецепта"
+          value={recipeForm.image}
+          onChangeText={(value) =>
+            setRecipeForm((current) => ({
+              ...current,
+              image: value,
+            }))
+          }
+          placeholder="https://..."
+          autoCapitalize="none"
+          keyboardType="url"
+        />
 
-          {!!recipeForm.image && (
-            <ImageWithFallback
-              uri={
-                recipeForm.image
+        {!!recipeForm.image && (
+          <ImageWithFallback
+            uri={recipeForm.image}
+            style={styles.editorImagePreview}
+            fallback="🍳"
+          />
+        )}
+
+        <View style={styles.formTwoColumns}>
+          <View style={styles.formHalf}>
+            <FormInput
+              label="Порций"
+              value={String(recipeForm.servings || 1)}
+              onChangeText={(value) =>
+                setRecipeForm((current) => ({
+                  ...current,
+                  servings: Number(value) || 1,
+                }))
               }
-              style={
-                styles.editorImagePreview
-              }
-              fallback="🍳"
+              keyboardType="numeric"
             />
-          )}
-
-          <View
-            style={
-              styles.formTwoColumns
-            }
-          >
-            <View
-              style={
-                styles.formHalf
-              }
-            >
-              <FormInput
-                label="Порций"
-                value={String(
-                  recipeForm.servings ||
-                    1
-                )}
-                onChangeText={(
-                  value
-                ) =>
-                  setRecipeForm(
-                    (current) => ({
-                      ...current,
-                      servings:
-                        Number(
-                          value
-                        ) || 1,
-                    })
-                  )
-                }
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View
-              style={
-                styles.formHalf
-              }
-            >
-              <FormInput
-                label="Подготовка, мин"
-                value={String(
-                  recipeForm.prepTime ||
-                    0
-                )}
-                onChangeText={(
-                  value
-                ) =>
-                  setRecipeForm(
-                    (current) => ({
-                      ...current,
-                      prepTime:
-                        Number(
-                          value
-                        ) || 0,
-                    })
-                  )
-                }
-                keyboardType="numeric"
-              />
-            </View>
           </View>
 
-          <FormInput
-            label="Готовка, мин"
-            value={String(
-              recipeForm.cookTime ||
-                0
+          <View style={styles.formHalf}>
+            <FormInput
+              label="Подготовка, мин"
+              value={String(recipeForm.prepTime || 0)}
+              onChangeText={(value) =>
+                setRecipeForm((current) => ({
+                  ...current,
+                  prepTime: Number(value) || 0,
+                }))
+              }
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+
+        <FormInput
+          label="Готовка, мин"
+          value={String(recipeForm.cookTime || 0)}
+          onChangeText={(value) =>
+            setRecipeForm((current) => ({
+              ...current,
+              cookTime: Number(value) || 0,
+            }))
+          }
+          keyboardType="numeric"
+        />
+
+        <Pressable
+          style={styles.proToggle}
+          onPress={() =>
+            setRecipeForm((current) => ({
+              ...current,
+              pro: !current.pro,
+            }))
+          }
+        >
+          <View
+            style={[
+              styles.checkbox,
+              recipeForm.pro && styles.checkboxActive,
+            ]}
+          >
+            {recipeForm.pro && (
+              <Text style={styles.checkboxCheck}>✓</Text>
             )}
-            onChangeText={(
-              value
-            ) =>
-              setRecipeForm(
-                (current) => ({
-                  ...current,
-                  cookTime:
-                    Number(
-                      value
-                    ) || 0,
-                })
-              )
-            }
-            keyboardType="numeric"
-          />
+          </View>
 
-          <Pressable
-            style={
-              styles.proToggle
-            }
-            onPress={() =>
-              setRecipeForm(
-                (current) => ({
-                  ...current,
-                  pro:
-                    !current.pro,
-                })
-              )
-            }
-          >
-            <View
-              style={[
-                styles.checkbox,
-                recipeForm.pro &&
-                  styles.checkboxActive,
-              ]}
-            >
-              {recipeForm.pro && (
-                <Text
-                  style={
-                    styles.checkboxCheck
-                  }
-                >
-                  ✓
-                </Text>
-              )}
-            </View>
-
-            <View
-              style={
-                styles.proToggleMain
-              }
-            >
-              <Text
-                style={
-                  styles.proToggleTitle
-                }
-              >
-                PRO-рецепт
-              </Text>
-
-              <Text
-                style={
-                  styles.proToggleText
-                }
-              >
-                Отметить рецепт как
-                доступный по
-                подписке PRO
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-
-        <SectionTitle
-          title="Ингредиенты"
-        />
-
-        <View
-          style={
-            styles.formCard
-          }
-        >
-          {recipeForm.ingredients
-            .length ===
-            0 && (
-            <Text
-              style={
-                styles.mutedText
-              }
-            >
-              Добавь продукты,
-              которые входят в
-              рецепт.
+          <View style={styles.proToggleMain}>
+            <Text style={styles.proToggleTitle}>
+              PRO-рецепт
             </Text>
-          )}
 
-          {recipeForm.ingredients.map(
-            (
-              ingredient,
-              index
-            ) => (
-              <View
-                key={`ingredient-editor-${index}`}
-                style={
-                  styles.ingredientEditorRow
-                }
-              >
-                <View
-                  style={
-                    styles.ingredientEditorSelect
-                  }
-                >
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={
-                      false
-                  }
-                  contentContainerStyle={{
-                    alignItems:
-                      "center",
-                  }}
-                >
-                  {products.map(
-                    (product) => {
-                      const active =
-                        String(
-                          ingredient.productId
-                        ) ===
-                        String(
-                          product.id
-                        );
+            <Text style={styles.proToggleText}>
+              Отметить рецепт как доступный по подписке PRO
+            </Text>
+          </View>
+        </Pressable>
+      </View>
 
-                      return (
-                        <Pressable
-                          key={
-                            product.id
-                          }
-                          onPress={() =>
-                            updateRecipeIngredient(
-                              index,
-                              "productId",
-                              product.id
-                            )
-                          }
-                          style={[
-                            styles.ingredientProductChip,
-                            active &&
-                              styles.ingredientProductChipActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.ingredientProductChipText,
-                              active &&
-                                styles.ingredientProductChipTextActive,
-                            ]}
-                            numberOfLines={
-                              1
-                            }
-                          >
-                            {
-                              product.name
-                            }
-                          </Text>
-                        </Pressable>
-                      );
-                    }
-                  )}
-                </ScrollView>
-              </View>
-            )
-          )}
+      <SectionTitle title="Ингредиенты" />
 
-          {recipeForm.ingredients.map(
-            (
-              ingredient,
-              index
-            ) => {
-              const selectedProduct =
-                products.find(
-                  (product) =>
-                    String(
-                      product.id
-                    ) ===
-                    String(
-                      ingredient.productId
-                    )
-                );
+      <View style={styles.formCard}>
+        {recipeForm.ingredients.length === 0 && (
+          <Text style={styles.mutedText}>
+            Добавь продукты, которые входят в рецепт.
+          </Text>
+        )}
 
-              return (
-                <View
-                  key={`ingredient-row-${index}`}
-                  style={
-                    styles.ingredientWeightRow
-                  }
-                >
-                  <Text
-                    style={
-                      styles.ingredientWeightName
-                    }
-                    numberOfLines={
-                      1
-                    }
-                  >
-                    {selectedProduct?.name ||
-                      "Выбери продукт"}
-                  </Text>
-
-                  <TextInput
-                    value={String(
-                      ingredient.grams ??
-                        0
-                    )}
-                    onChangeText={(
-                      value
-                    ) =>
-                      updateRecipeIngredient(
-                        index,
-                        "grams",
-                        value
-                      )
-                    }
-                    keyboardType="decimal-pad"
-                    style={
-                      styles.ingredientWeightInput
-                    }
-                    placeholder="г"
-                  />
-
-                  <Pressable
-                    onPress={() =>
-                      removeRecipeIngredient(
-                        index
-                      )
-                    }
-                    style={
-                      styles.deleteIngredientButton
-                    }
-                  >
-                    <Text>
-                      ✕
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            }
-          )}
-
-          <SecondaryButton
-            title="+ Добавить ингредиент"
-            onPress={
-              addRecipeIngredient
-            }
-          />
-
+        {recipeForm.ingredients.map((ingredient, index) => (
           <View
-            style={
-              styles.nutritionPreview
-            }
+            key={`ingredient-editor-${index}`}
+            style={styles.ingredientEditorRow}
           >
-            <Text
-              style={
-                styles.nutritionPreviewTitle
-              }
-            >
-              Расчёт рецепта
-            </Text>
+            <View style={styles.ingredientEditorSelect}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  alignItems: "center",
+                }}
+              >
+                {products.map((product) => {
+                  const active =
+                    String(ingredient.productId) ===
+                    String(product.id);
 
-            <View
-              style={
-                styles.nutritionPreviewGrid
-              }
-            >
-              <StatCard
-                label="Ккал"
-                value={Math.round(
-                  recipeFormNutrition.kcal
-                )}
-              />
-
-              <StatCard
-                label="Белки"
-                value={`${Math.round(
-                  recipeFormNutrition.protein
-                )} г`}
-              />
-
-              <StatCard
-                label="Жиры"
-                value={`${Math.round(
-                  recipeFormNutrition.fat
-                )} г`}
-              />
-
-              <StatCard
-                label="Углеводы"
-                value={`${Math.round(
-                  recipeFormNutrition.carbs
-                )} г`}
-              />
+                  return (
+                    <Pressable
+                      key={product.id}
+                      onPress={() =>
+                        updateRecipeIngredient(
+                          index,
+                          "productId",
+                          product.id
+                        )
+                      }
+                      style={[
+                        styles.ingredientProductChip,
+                        active &&
+                          styles.ingredientProductChipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.ingredientProductChipText,
+                          active &&
+                            styles.ingredientProductChipTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {product.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
           </View>
-        </View>
+        ))}
 
-        <SectionTitle
-          title="Приготовление"
-        />
+        {recipeForm.ingredients.map((ingredient, index) => {
+          const selectedProduct = products.find(
+            (product) =>
+              String(product.id) ===
+              String(ingredient.productId)
+          );
 
-        <View
-          style={
-            styles.formCard
-          }
-        >
-          {recipeForm.steps.map(
-            (
-              step,
-              index
-            ) => (
-              <View
-                key={`step-editor-${index}`}
-                style={
-                  styles.stepEditorRow
-                }
+          return (
+            <View
+              key={`ingredient-row-${index}`}
+              style={styles.ingredientWeightRow}
+            >
+              <Text
+                style={styles.ingredientWeightName}
+                numberOfLines={1}
               >
-                <View
-                  style={
-                    styles.stepEditorNumber
-                  }
-                >
-                  <Text
-                    style={
-                      styles.stepEditorNumberText
-                    }
-                  >
-                    {index +
-                      1}
-                  </Text>
-                </View>
+                {selectedProduct?.name || "Выбери продукт"}
+              </Text>
 
-                <TextInput
-                  value={
-                    step
-                  }
-                  onChangeText={(
+              <TextInput
+                value={String(ingredient.grams ?? 0)}
+                onChangeText={(value) =>
+                  updateRecipeIngredient(
+                    index,
+                    "grams",
                     value
-                  ) =>
-                    updateRecipeStep(
-                      index,
-                      value
-                    )
-                  }
-                  multiline
-                  placeholder={`Шаг ${
-                    index + 1
-                  }`}
-                  style={
-                    styles.stepEditorInput
-                  }
-                />
+                  )
+                }
+                keyboardType="decimal-pad"
+                style={styles.ingredientWeightInput}
+                placeholder="г"
+              />
 
-                <Pressable
-                  onPress={() =>
-                    removeRecipeStep(
-                      index
-                    )
-                  }
-                  style={
-                    styles.deleteIngredientButton
-                  }
-                >
-                  <Text>
-                    ✕
-                  </Text>
-                </Pressable>
-              </View>
-            )
-          )}
-
-          <SecondaryButton
-            title="+ Добавить шаг"
-            onPress={
-              addRecipeStep
-            }
-          />
-        </View>
-
-        <PrimaryButton
-          title={
-            editing
-              ? "Сохранить рецепт"
-              : "Создать рецепт"
-          }
-          onPress={
-            saveRecipe
-          }
-        />
+              <Pressable
+                onPress={() =>
+                  removeRecipeIngredient(index)
+                }
+                style={styles.deleteIngredientButton}
+              >
+                <Text>✕</Text>
+              </Pressable>
+            </View>
+          );
+        })}
 
         <SecondaryButton
-          title="Отмена"
-          onPress={() =>
-            setScreen(
-              "author"
-            )
-          }
+          title="+ Добавить ингредиент"
+          onPress={addRecipeIngredient}
         />
 
-        <View
-          style={
-            styles.bottomSpacer
-          }
+        <View style={styles.nutritionPreview}>
+          <Text style={styles.nutritionPreviewTitle}>
+            Расчёт рецепта
+          </Text>
+
+          <View style={styles.nutritionPreviewGrid}>
+            <StatCard
+              label="Ккал"
+              value={Math.round(recipeFormNutrition.kcal)}
+            />
+
+            <StatCard
+              label="Белки"
+              value={`${Math.round(
+                recipeFormNutrition.protein
+              )} г`}
+            />
+
+            <StatCard
+              label="Жиры"
+              value={`${Math.round(
+                recipeFormNutrition.fat
+              )} г`}
+            />
+
+            <StatCard
+              label="Углеводы"
+              value={`${Math.round(
+                recipeFormNutrition.carbs
+              )} г`}
+            />
+          </View>
+        </View>
+      </View>
+
+      <SectionTitle title="Приготовление" />
+
+      <View style={styles.formCard}>
+        {recipeForm.steps.map((step, index) => (
+          <View
+            key={`step-editor-${index}`}
+            style={styles.stepEditorRow}
+          >
+            <View style={styles.stepEditorNumber}>
+              <Text style={styles.stepEditorNumberText}>
+                {index + 1}
+              </Text>
+            </View>
+
+            <TextInput
+              value={step}
+              onChangeText={(value) =>
+                updateRecipeStep(index, value)
+              }
+              multiline
+              placeholder={`Шаг ${index + 1}`}
+              style={styles.stepEditorInput}
+            />
+
+            <Pressable
+              onPress={() => removeRecipeStep(index)}
+              style={styles.deleteIngredientButton}
+            >
+              <Text>✕</Text>
+            </Pressable>
+          </View>
+        ))}
+
+        <SecondaryButton
+          title="+ Добавить шаг"
+          onPress={addRecipeStep}
         />
-      </ScrollView>
-    );
-  }
+      </View>
+
+      <PrimaryButton
+        title={editing ? "Сохранить рецепт" : "Создать рецепт"}
+        onPress={saveRecipe}
+      />
+
+      <SecondaryButton
+        title="Отмена"
+        onPress={() => setScreen("author")}
+      />
+
+      <View style={styles.bottomSpacer} />
+    </ScrollView>
+  );
+}
 
   // ============================================================
   // SETTINGS SCREEN
