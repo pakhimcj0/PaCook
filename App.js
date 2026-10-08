@@ -13100,19 +13100,7 @@ function renderAuthorRecipeScreen() {
   );
   
 
-    // ============================================================
-  // COUNTERS
-  // ============================================================
-
-  const customProductsCount = products.filter(
-    (item) =>
-      !String(item.id).startsWith("base-")
-  ).length;
-
-  const customRecipesCount = recipes.filter(
-    (item) =>
-      !String(item.id).startsWith("base-")
-  ).length;
+    
 
   // ============================================================
   // RECIPE FORM NUTRITION
