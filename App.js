@@ -13084,21 +13084,33 @@ function renderAuthorRecipeScreen() {
     );
   }
 
-  // ============================================================
-  // FALLBACK
-  // ============================================================
+ // ============================================================
+ // FALLBACK
+ // ============================================================
 
-  return (
-    <View
-      style={
-        styles.appContainer
-      }
+ return (
+  <View style={styles.appContainer}>
+    <Text
+      style={{
+        fontSize: 24,
+        fontWeight: "700",
+        margin: 30,
+        color: "#345C48",
+      }}
     >
-      {renderHomeScreen()}
-      {renderBottomNavigation()}
-    </View>
-  );
-  
+      PaCook запущен
+    </Text>
+
+    <Text
+      style={{
+        marginHorizontal: 30,
+        color: "#1D2922",
+      }}
+    >
+      Проверка запуска приложения
+    </Text>
+  </View>
+);
   // ============================================================
   // AUTH ERROR
   // ============================================================
