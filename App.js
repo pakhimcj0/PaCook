@@ -5103,61 +5103,40 @@ function StatCard({
 ========================================================= */
 
 function MacroRow({
-  kcal,
-  protein,
-  fat,
-  carbs,
+  label,
+  value,
 }) {
   return (
     <View
       style={{
-        flexDirection:
-          "row",
-
-        gap: 8,
-
-        marginTop:
-          12,
+        flex: 1,
+        backgroundColor: COLORS.card,
+        borderRadius: 16,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        minWidth: 0,
       }}
     >
-      <StatCard
-        label="Ккал"
-        value={
-          roundNutrition(
-            kcal
-          )
-        }
-      />
+      <Text
+        style={{
+          color: COLORS.muted,
+          fontSize: 12,
+          marginBottom: 5,
+        }}
+      >
+        {label}
+      </Text>
 
-      <StatCard
-        label="Белки"
-        value={
-          roundNutrition(
-            protein
-          )
-        }
-        suffix="г"
-      />
-
-      <StatCard
-        label="Жиры"
-        value={
-          roundNutrition(
-            fat
-          )
-        }
-        suffix="г"
-      />
-
-      <StatCard
-        label="Углеводы"
-        value={
-          roundNutrition(
-            carbs
-          )
-        }
-        suffix="г"
-      />
+      <Text
+        style={{
+          color: COLORS.text,
+          fontSize: 18,
+          fontWeight: "800",
+        }}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -5418,21 +5397,20 @@ function AppHeader({
   title = "PaCook",
   subtitle = "Cook smart. Eat better.",
   onProfile,
+  onProfilePress,
 }) {
+  const profileHandler =
+    onProfile ||
+    onProfilePress ||
+    (() => {});
+
   return (
     <View
       style={{
-        flexDirection:
-          "row",
-
-        alignItems:
-          "center",
-
-        justifyContent:
-          "space-between",
-
-        marginBottom:
-          18,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 18,
       }}
     >
       <View
@@ -5442,74 +5420,45 @@ function AppHeader({
       >
         <Text
           style={{
-            fontSize:
-              30,
-
-            fontWeight:
-              "900",
-
-            color:
-              COLORS.green,
+            fontSize: 30,
+            fontWeight: "900",
+            color: COLORS.green,
           }}
         >
           {title}
         </Text>
 
-
         <Text
           style={{
-            color:
-              COLORS.muted,
-
-            marginTop:
-              2,
-
-            fontSize:
-              13,
+            color: COLORS.muted,
+            marginTop: 2,
+            fontSize: 13,
           }}
         >
           {subtitle}
         </Text>
       </View>
 
-
-      <TouchableOpacity
-        onPress={
-          onProfile
-        }
-
+      <Pressable
+        onPress={profileHandler}
         style={{
-          width:
-            48,
-
-          height:
-            48,
-
-          borderRadius:
-            24,
-
-          backgroundColor:
-            COLORS.lightGreen,
-
-          alignItems:
-            "center",
-
-          justifyContent:
-            "center",
-
-          overflow:
-            "hidden",
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          backgroundColor: COLORS.lightGreen,
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
         }}
       >
         <Text
           style={{
-            fontSize:
-              23,
+            fontSize: 23,
           }}
         >
           👨‍🍳
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 }
@@ -6003,11 +5952,9 @@ export default function App() {
 
 
   const [
-    diaryDay,
-    setDiaryDay,
-  ] = useState(
-    "Понедельник"
-  );
+  diaryDay,
+  setDiaryDay,
+] = useState(1);
 
 
   const [
@@ -10522,7 +10469,7 @@ function renderRecipesScreen() {
       >
         {[
           "Все",
-          ...categories,
+         ...recipeCategories,
         ].map(
           (category) => {
             const active =
