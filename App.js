@@ -2362,12 +2362,6 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 5,
   },
 
-  "Кокосовая стружка": {
-    kcal: 660,
-    protein: 6.9,
-    fat: 64.5,
-    carbs: 23.7,
-  },
 
   Лимон: {
     kcal: 29,
