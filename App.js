@@ -13098,127 +13098,97 @@ function renderAuthorRecipeScreen() {
       {renderBottomNavigation()}
     </View>
   );
-  // ============================================================
-  // AUTH STATE
-  // ============================================================
+  
 
-  const [authEmailState, setAuthEmailState] =
-    useState("");
-
-  const [authPasswordState, setAuthPasswordState] =
-    useState("");
-
-  const [authNameState, setAuthNameState] =
-    useState("");
-
-  const [authMode, setAuthMode] =
-    useState("login");
-
-  const [authLoading, setAuthLoading] =
-    useState(false);
-
-  const [authError, setAuthError] =
-    useState("");
-
-  // ============================================================
+    // ============================================================
   // COUNTERS
   // ============================================================
 
-  const customProductsCount =
-    products.filter(
-      (item) =>
-        !String(item.id).startsWith("base-")
-    ).length;
+  const customProductsCount = products.filter(
+    (item) =>
+      !String(item.id).startsWith("base-")
+  ).length;
 
-  const customRecipesCount =
-    recipes.filter(
-      (item) =>
-        !String(item.id).startsWith("base-")
-    ).length;
+  const customRecipesCount = recipes.filter(
+    (item) =>
+      !String(item.id).startsWith("base-")
+  ).length;
 
   // ============================================================
   // RECIPE FORM NUTRITION
   // ============================================================
 
-  const recipeFormNutrition =
-    useMemo(() => {
-      if (
-        !recipeForm ||
-        !Array.isArray(
-          recipeForm.ingredients
-        )
-      ) {
-        return {
-          calories: 0,
-          protein: 0,
-          fat: 0,
-          carbs: 0,
-        };
-      }
+  const recipeFormNutrition = useMemo(() => {
+    if (
+      !recipeForm ||
+      !Array.isArray(recipeForm.ingredients)
+    ) {
+      return {
+        kcal: 0,
+        protein: 0,
+        fat: 0,
+        carbs: 0,
+      };
+    }
 
-      const ingredients =
-        recipeForm.ingredients;
+    return recipeForm.ingredients.reduce(
+      (total, ingredient) => {
+        const product = products.find(
+          (item) =>
+            String(item.id) ===
+            String(ingredient.productId)
+        );
 
-      return ingredients.reduce(
-        (total, ingredient) => {
-          const product =
-            products.find(
-              (item) =>
-                String(item.id) ===
-                String(
-                  ingredient.productId
-                )
-            );
-
-          if (!product) {
-            return total;
-          }
-
-          const grams =
-            Number(
-              ingredient.grams
-            ) || 0;
-
-          const multiplier =
-            grams / 100;
-
-          total.calories +=
-            (Number(
-              product.calories
-            ) || 0) *
-            multiplier;
-
-          total.protein +=
-            (Number(
-              product.protein
-            ) || 0) *
-            multiplier;
-
-          total.fat +=
-            (Number(
-              product.fat
-            ) || 0) *
-            multiplier;
-
-          total.carbs +=
-            (Number(
-              product.carbs
-            ) || 0) *
-            multiplier;
-
+        if (!product) {
           return total;
-        },
-        {
-          calories: 0,
-          protein: 0,
-          fat: 0,
-          carbs: 0,
         }
-      );
-    }, [
-      recipeForm,
-      products,
-    ]);
+
+        const grams =
+          Number(ingredient.grams) || 0;
+
+        const multiplier = grams / 100;
+
+        const kcal =
+          Number(
+            product.kcal ??
+              product.calories ??
+              0
+          ) || 0;
+
+        const protein =
+          Number(product.protein) || 0;
+
+        const fat =
+          Number(product.fat) || 0;
+
+        const carbs =
+          Number(product.carbs) || 0;
+
+        total.kcal +=
+          kcal * multiplier;
+
+        total.protein +=
+          protein * multiplier;
+
+        total.fat +=
+          fat * multiplier;
+
+        total.carbs +=
+          carbs * multiplier;
+
+        return total;
+      },
+      {
+        kcal: 0,
+        protein: 0,
+        fat: 0,
+        carbs: 0,
+      }
+    );
+  }, [
+    recipeForm,
+    products,
+  ]);
 
   // ============================================================
   // AUTH ERROR
