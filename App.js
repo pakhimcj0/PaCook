@@ -5527,6 +5527,40 @@ export default function App() {
     setAuthChecked,
   ] = useState(false);
 
+   const [
+    authEmailState,
+    setAuthEmailState,
+  ] = useState("");
+
+
+  const [
+    authPasswordState,
+    setAuthPasswordState,
+  ] = useState("");
+
+
+  const [
+    authNameState,
+    setAuthNameState,
+  ] = useState("");
+
+
+  const [
+    authMode,
+    setAuthMode,
+  ] = useState("login");
+
+
+  const [
+    authLoading,
+    setAuthLoading,
+  ] = useState(false);
+
+
+  const [
+    authError,
+    setAuthError,
+  ] = useState("");
 
   const [
     products,
