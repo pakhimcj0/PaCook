@@ -3168,40 +3168,42 @@ const INITIAL_RECIPES = [
    DATA NORMALIZATION
 ========================================================= */
 
-function normalizeProduct(
-  product
-) {
+function normalizeProduct(product) {
   if (!product) {
     return null;
   }
 
   /*
-     Supabase product:
-     {
-       name,
-       kcal,
-       protein,
-       fat,
-       carbs
-     }
+    Поддерживаем оба формата:
 
-     Local product:
-     {
-       kcal,
-       protein,
-       fat,
-       carbs
-     }
+    Массив:
+    {
+      id,
+      name,
+      kcal,
+      protein,
+      fat,
+      carbs
+    }
+
+    Объект:
+    {
+      "Творог 5%": {
+        kcal,
+        protein,
+        fat,
+        carbs
+      }
+    }
+
+    Строка:
+    "Творог 5%"
   */
 
-  if (
-    typeof product ===
-    "string"
-  ) {
+  if (typeof product === "string") {
     return {
-      name:
-        product,
-
+      id: makeId("product"),
+      name: cleanString(product),
       kcal: 0,
       protein: 0,
       fat: 0,
@@ -3212,119 +3214,117 @@ function normalizeProduct(
   return {
     ...product,
 
+    id:
+      product.id ||
+      makeId("product"),
+
     name:
-      cleanString(
-        product.name
-      ),
+      cleanString(product.name),
 
     kcal:
-      num(
-        product.kcal
-      ),
+      num(product.kcal),
 
     protein:
-      num(
-        product.protein
-      ),
+      num(product.protein),
 
     fat:
-      num(
-        product.fat
-      ),
+      num(product.fat),
 
     carbs:
-      num(
-        product.carbs
-      ),
+      num(product.carbs),
   };
 }
 
 
-function normalizeProducts(
-  products
-) {
-  const result = {};
+/*
+  ВСЕГДА возвращает МАССИВ.
 
-  if (
-    Array.isArray(
-      products
-    )
-  ) {
-    products.forEach(
-      (product) => {
-        const normalized =
-          normalizeProduct(
-            product
-          );
+  Это важно, потому что дальше приложение
+  использует:
 
-        if (
-          normalized?.name
-        ) {
-          result[
-            normalized.name
-          ] = {
-            kcal:
-              normalized.kcal,
+    products.filter(...)
+    products.map(...)
+    products.find(...)
+    products.length
+  */
 
-            protein:
-              normalized.protein,
+function normalizeProducts(products) {
+  const result = [];
 
-            fat:
-              normalized.fat,
+  if (Array.isArray(products)) {
+    products.forEach((product) => {
+      const normalized =
+        normalizeProduct(product);
 
-            carbs:
-              normalized.carbs,
-          };
-        }
+      if (normalized?.name) {
+        result.push(normalized);
       }
-    );
+    });
 
     return result;
   }
 
 
+  /*
+    Если старые данные были сохранены
+    в формате объекта:
+
+    {
+      "Творог 5%": {
+        kcal: 121,
+        protein: 17,
+        fat: 5,
+        carbs: 2
+      }
+    }
+
+    превращаем их обратно в массив.
+  */
+
   if (
     products &&
-    typeof products ===
-      "object"
+    typeof products === "object"
   ) {
-    Object.entries(
-      products
-    ).forEach(
-      ([
-        name,
-        value,
-      ]) => {
+    Object.entries(products).forEach(
+      ([name, value]) => {
         const normalized =
           normalizeProduct({
-            name,
             ...(value || {}),
+            name,
           });
 
-        if (
-          normalized?.name
-        ) {
-          result[
-            normalized.name
-          ] = {
-            kcal:
-              normalized.kcal,
-
-            protein:
-              normalized.protein,
-
-            fat:
-              normalized.fat,
-
-            carbs:
-              normalized.carbs,
-          };
+        if (normalized?.name) {
+          result.push(normalized);
         }
       }
     );
   }
 
   return result;
+}
+
+
+/*
+  Дополнительная защита.
+
+  Если где-то в старых сохранённых данных
+  products оказался объектом, эта функция
+  гарантирует, что приложение получит массив.
+*/
+
+function ensureProductsArray(products) {
+  if (Array.isArray(products)) {
+    return products;
+  }
+
+  const normalized =
+    normalizeProducts(products);
+
+  if (Array.isArray(normalized)) {
+    return normalized;
+  }
+
+  return [];
 }
 
 
@@ -3442,11 +3442,21 @@ function normalizeRecipes(
 }
 
 
+
 /* =========================================================
    LOCAL DATA LOADING
 ========================================================= */
 
 async function loadLocalPaCookData() {
+  const defaultData = {
+    products: ALL_INITIAL_PRODUCTS,
+    recipes: INITIAL_RECIPES,
+    favorites: [],
+    diary: [],
+    deletedProducts: [],
+    deletedRecipes: [],
+  };
+
   try {
     const raw =
       await AsyncStorage.getItem(
@@ -3454,21 +3464,7 @@ async function loadLocalPaCookData() {
       );
 
     if (!raw) {
-      return {
-        products:
-          ALL_INITIAL_PRODUCTS,
-
-        recipes:
-          INITIAL_RECIPES,
-
-        favorites: [],
-
-        diary: [],
-
-        deletedProducts: [],
-
-        deletedRecipes: [],
-      };
+      return defaultData;
     }
 
     const parsed =
@@ -3477,128 +3473,263 @@ async function loadLocalPaCookData() {
         null
       );
 
-    if (!parsed) {
-      return {
-        products:
-          ALL_INITIAL_PRODUCTS,
-
-        recipes:
-          INITIAL_RECIPES,
-
-        favorites: [],
-
-        diary: [],
-
-        deletedProducts: [],
-
-        deletedRecipes: [],
-      };
+    if (
+      !parsed ||
+      typeof parsed !== "object"
+    ) {
+      return defaultData;
     }
+
+    /*
+      PRODUCTS
+
+      Старые версии PaCook могли хранить
+      продукты как объект.
+
+      Новая версия приложения всегда
+      работает с products как с массивом.
+    */
+
+    let loadedProducts;
+
+    if (
+      parsed.products !== undefined &&
+      parsed.products !== null
+    ) {
+      loadedProducts =
+        ensureProductsArray(
+          parsed.products
+        );
+    } else {
+      loadedProducts =
+        [...ALL_INITIAL_PRODUCTS];
+    }
+
+    /*
+      Если после нормализации почему-то
+      получился пустой результат, но в
+      сохранённых данных действительно были
+      продукты, используем базовую базу.
+    */
+
+    if (
+      !Array.isArray(
+        loadedProducts
+      )
+    ) {
+      loadedProducts =
+        [...ALL_INITIAL_PRODUCTS];
+    }
+
+
+    /*
+      RECIPES
+    */
+
+    let loadedRecipes;
+
+    if (
+      Array.isArray(
+        parsed.recipes
+      )
+    ) {
+      loadedRecipes =
+        normalizeRecipes(
+          parsed.recipes
+        );
+    } else {
+      loadedRecipes =
+        [...INITIAL_RECIPES];
+    }
+
+
+    /*
+      FAVORITES
+    */
+
+    const loadedFavorites =
+      Array.isArray(
+        parsed.favorites
+      )
+        ? parsed.favorites
+        : [];
+
+
+    /*
+      DIARY
+    */
+
+    const loadedDiary =
+      Array.isArray(
+        parsed.diary
+      )
+        ? parsed.diary
+        : [];
+
+
+    /*
+      DELETED PRODUCTS
+    */
+
+    const loadedDeletedProducts =
+      Array.isArray(
+        parsed.deletedProducts
+      )
+        ? parsed.deletedProducts
+        : [];
+
+
+    /*
+      DELETED RECIPES
+    */
+
+    const loadedDeletedRecipes =
+      Array.isArray(
+        parsed.deletedRecipes
+      )
+        ? parsed.deletedRecipes
+        : [];
+
+
+    /*
+      ВСЕГДА возвращаем правильную
+      структуру данных.
+    */
 
     return {
       products:
-        normalizeProducts(
-          parsed.products ||
-            ALL_INITIAL_PRODUCTS
-        ),
+        Array.isArray(
+          loadedProducts
+        )
+          ? loadedProducts
+          : [
+              ...ALL_INITIAL_PRODUCTS,
+            ],
 
       recipes:
-        normalizeRecipes(
-          parsed.recipes ||
-            INITIAL_RECIPES
-        ),
+        Array.isArray(
+          loadedRecipes
+        )
+          ? loadedRecipes
+          : [
+              ...INITIAL_RECIPES,
+            ],
 
       favorites:
-        Array.isArray(
-          parsed.favorites
-        )
-          ? parsed.favorites
-          : [],
+        loadedFavorites,
 
       diary:
-        Array.isArray(
-          parsed.diary
-        )
-          ? parsed.diary
-          : [],
+        loadedDiary,
 
       deletedProducts:
-        Array.isArray(
-          parsed.deletedProducts
-        )
-          ? parsed.deletedProducts
-          : [],
+        loadedDeletedProducts,
 
       deletedRecipes:
-        Array.isArray(
-          parsed.deletedRecipes
-        )
-          ? parsed.deletedRecipes
-          : [],
+        loadedDeletedRecipes,
     };
+
   } catch (error) {
     console.log(
       "LOAD LOCAL DATA ERROR:",
       error
     );
 
-    return {
-      products:
-        ALL_INITIAL_PRODUCTS,
-
-      recipes:
-        INITIAL_RECIPES,
-
-      favorites: [],
-
-      diary: [],
-
-      deletedProducts: [],
-
-      deletedRecipes: [],
-    };
+    return defaultData;
   }
 }
-
 
 /* =========================================================
    LOCAL DATA SAVE
 ========================================================= */
 
-async function saveLocalPaCookData(
-  data
-) {
+async function saveLocalPaCookData(data) {
   try {
+    /*
+      PRODUCTS всегда сохраняем как МАССИВ.
+      Это важно, потому что всё приложение
+      работает с products через:
+      .filter()
+      .map()
+      .find()
+      .length
+    */
+
+    const products =
+      ensureProductsArray(
+        data?.products
+      );
+
+    const recipes =
+      Array.isArray(
+        data?.recipes
+      )
+        ? normalizeRecipes(
+            data.recipes
+          )
+        : [];
+
+
+    const favorites =
+      Array.isArray(
+        data?.favorites
+      )
+        ? data.favorites
+        : [];
+
+
+    const diary =
+      Array.isArray(
+        data?.diary
+      )
+        ? data.diary
+        : [];
+
+
+    const deletedProducts =
+      Array.isArray(
+        data?.deletedProducts
+      )
+        ? data.deletedProducts
+        : [];
+
+
+    const deletedRecipes =
+      Array.isArray(
+        data?.deletedRecipes
+      )
+        ? data.deletedRecipes
+        : [];
+
+
     await AsyncStorage.setItem(
       STORAGE_KEYS.data,
       JSON.stringify({
         products:
-          data?.products ||
-          {},
+          Array.isArray(products)
+            ? products
+            : [
+                ...ALL_INITIAL_PRODUCTS,
+              ],
 
         recipes:
-          data?.recipes ||
-          [],
+          recipes,
 
         favorites:
-          data?.favorites ||
-          [],
+          favorites,
 
         diary:
-          data?.diary ||
-          [],
+          diary,
 
         deletedProducts:
-          data?.deletedProducts ||
-          [],
+          deletedProducts,
 
         deletedRecipes:
-          data?.deletedRecipes ||
-          [],
+          deletedRecipes,
       })
     );
 
     return true;
+
   } catch (error) {
     console.log(
       "SAVE LOCAL DATA ERROR:",
@@ -3608,6 +3739,7 @@ async function saveLocalPaCookData(
     return false;
   }
 }
+
 /* =========================================================
    DATA MERGE HELPERS
 ========================================================= */
@@ -3616,12 +3748,14 @@ async function saveLocalPaCookData(
    Локальные авторские изменения имеют приоритет
    над встроенными стартовыми данными.
 
-   Это важно для сохранения изменений после обновления
-   приложения:
-   - изменил рецепт → остаётся изменённым;
-   - изменил продукт → остаётся изменённым;
-   - удалил рецепт → он не появляется снова;
-   - удалил продукт → он не появляется снова.
+   PRODUCTS всегда возвращается как МАССИВ.
+
+   Это важно, потому что приложение использует:
+
+   products.filter(...)
+   products.map(...)
+   products.find(...)
+   products.length
 */
 
 
@@ -3630,50 +3764,97 @@ function mergeProducts(
   localProducts,
   deletedProducts = []
 ) {
-  const result = {
-    ...normalizeProducts(
+  const base =
+    ensureProductsArray(
       baseProducts
-    ),
-  };
+    );
 
   const local =
-    normalizeProducts(
+    ensureProductsArray(
       localProducts
     );
 
-  Object.entries(
-    local
-  ).forEach(
-    ([
-      name,
-      value,
-    ]) => {
-      result[name] =
-        value;
+  /*
+    Объединяем продукты по имени.
+
+    Если локальный продукт существует,
+    он заменяет базовый.
+  */
+
+  const productMap =
+    new Map();
+
+  base.forEach(
+    (product) => {
+      const normalized =
+        normalizeProduct(
+          product
+        );
+
+      if (
+        normalized?.name
+      ) {
+        productMap.set(
+          normalized.name,
+          normalized
+        );
+      }
     }
   );
 
 
+  local.forEach(
+    (product) => {
+      const normalized =
+        normalizeProduct(
+          product
+        );
+
+      if (
+        normalized?.name
+      ) {
+        productMap.set(
+          normalized.name,
+          normalized
+        );
+      }
+    }
+  );
+
+
+  /*
+    Удалённые продукты
+    не должны появляться снова.
+  */
+
   const deletedSet =
     new Set(
-      (
-        deletedProducts ||
-        []
-      ).map(
-        (name) =>
-          cleanString(
-            name
-          )
+      Array.isArray(
+        deletedProducts
       )
+        ? deletedProducts.map(
+            (name) =>
+              cleanString(
+                name
+              )
+          )
+        : []
     );
 
 
-  deletedSet.forEach(
-    (name) => {
-      if (name) {
-        delete result[
+  const result = [];
+
+  productMap.forEach(
+    (product, name) => {
+      if (
+        name &&
+        !deletedSet.has(
           name
-        ];
+        )
+      ) {
+        result.push(
+          product
+        );
       }
     }
   );
@@ -3683,6 +3864,15 @@ function mergeProducts(
 }
 
 
+/*
+   MERGE RECIPES
+
+   Локальные рецепты имеют приоритет
+   над встроенными рецептами.
+
+   Всегда возвращаем МАССИВ.
+*/
+
 function mergeRecipes(
   baseRecipes,
   localRecipes,
@@ -3690,7 +3880,11 @@ function mergeRecipes(
 ) {
   const result =
     normalizeRecipes(
-      baseRecipes
+      Array.isArray(
+        baseRecipes
+      )
+        ? baseRecipes
+        : []
     ).map(
       (recipe) => ({
         ...recipe,
@@ -3700,12 +3894,17 @@ function mergeRecipes(
 
   const local =
     normalizeRecipes(
-      localRecipes
+      Array.isArray(
+        localRecipes
+      )
+        ? localRecipes
+        : []
     );
 
 
   const indexById =
     new Map();
+
 
   result.forEach(
     (
@@ -3721,6 +3920,11 @@ function mergeRecipes(
     }
   );
 
+
+  /*
+    Локальный рецепт заменяет
+    базовый рецепт с таким же id.
+  */
 
   local.forEach(
     (recipe) => {
@@ -3755,15 +3959,21 @@ function mergeRecipes(
   );
 
 
+  /*
+    Удалённые рецепты
+    не должны появляться снова.
+  */
+
   const deletedSet =
     new Set(
-      (
-        deletedRecipes ||
-        []
-      ).map(
-        (id) =>
-          String(id)
+      Array.isArray(
+        deletedRecipes
       )
+        ? deletedRecipes.map(
+            (id) =>
+              String(id)
+          )
+        : []
     );
 
 
@@ -3776,7 +3986,6 @@ function mergeRecipes(
       )
   );
 }
-
 
 /* =========================================================
    PRODUCT CALCULATION
@@ -3826,7 +4035,6 @@ function calculateProductNutrition(
   };
 }
 
-
 /* =========================================================
    RECIPE NUTRITION
 ========================================================= */
@@ -3840,7 +4048,6 @@ function calculateRecipeNutrition(
       recipe
     );
 
-
   if (!normalized) {
     return {
       kcal: 0,
@@ -3848,6 +4055,7 @@ function calculateRecipeNutrition(
       fat: 0,
       carbs: 0,
       totalWeight: 0,
+
       perServing: {
         kcal: 0,
         protein: 0,
@@ -3857,6 +4065,10 @@ function calculateRecipeNutrition(
     };
   }
 
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
 
   let kcal = 0;
   let protein = 0;
@@ -3864,34 +4076,48 @@ function calculateRecipeNutrition(
   let carbs = 0;
   let totalWeight = 0;
 
-
   normalized.ingredients.forEach(
-    (
-      ingredient
-    ) => {
-      const product =
-        products?.[
+    (ingredient) => {
+      const productName =
+        cleanString(
           ingredient.product
-        ];
+        );
 
+      if (!productName) {
+        return;
+      }
+
+      /*
+        Ищем продукт по названию.
+        products теперь всегда может быть массивом.
+      */
+
+      const product =
+        productsArray.find(
+          (item) =>
+            cleanString(
+              item?.name
+            ) === productName
+        ) || null;
 
       if (!product) {
         return;
       }
-
 
       const grams =
         num(
           ingredient.grams
         );
 
+      if (grams <= 0) {
+        return;
+      }
 
       const nutrition =
         calculateProductNutrition(
           product,
           grams
         );
-
 
       kcal +=
         nutrition.kcal;
@@ -3910,7 +4136,6 @@ function calculateRecipeNutrition(
     }
   );
 
-
   const servings =
     Math.max(
       1,
@@ -3918,7 +4143,6 @@ function calculateRecipeNutrition(
         normalized.servings
       ) || 1
     );
-
 
   return {
     kcal,
@@ -3946,7 +4170,6 @@ function calculateRecipeNutrition(
     },
   };
 }
-
 
 /* =========================================================
    ROUND NUTRITION
@@ -5957,374 +6180,487 @@ export default function App() {
 
 
   /* =======================================================
-     LOAD LOCAL DATA
-  ======================================================= */
+   LOAD LOCAL DATA
+======================================================= */
 
-  useEffect(() => {
-    let mounted =
-      true;
+useEffect(() => {
+  let mounted = true;
 
+  async function loadData() {
+    try {
+      setLoadingData(true);
 
-    async function loadData() {
-      try {
-        setLoadingData(
-          true
-        );
+      const [
+        localData,
+        localProfile,
+        localSettings,
+      ] = await Promise.all([
+        loadLocalPaCookData(),
+        loadLocalProfile(),
+        loadSettings(),
+      ]);
 
-
-        const [
-          localData,
-          localProfile,
-          localSettings,
-        ] =
-          await Promise.all([
-            loadLocalPaCookData(),
-            loadLocalProfile(),
-            loadSettings(),
-          ]);
-
-
-        if (
-          !mounted
-        ) {
-          return;
-        }
-
-
-        /*
-           Не просто заменяем стартовыми данными,
-           а объединяем их с локальной копией.
-        */
-
-        const mergedProducts =
-          mergeProducts(
-            ALL_INITIAL_PRODUCTS,
-            localData.products,
-            localData.deletedProducts
-          );
-
-
-        const mergedRecipes =
-          mergeRecipes(
-            INITIAL_RECIPES,
-            localData.recipes,
-            localData.deletedRecipes
-          );
-
-
-        setProducts(
-          mergedProducts
-        );
-
-        setRecipes(
-          mergedRecipes
-        );
-
-        setFavorites(
-          localData.favorites ||
-            []
-        );
-
-        setDiary(
-          localData.diary ||
-            []
-        );
-
-        setDeletedProducts(
-          localData.deletedProducts ||
-            []
-        );
-
-        setDeletedRecipes(
-          localData.deletedRecipes ||
-            []
-        );
-
-        setProfile(
-          localProfile
-        );
-
-        setProfileForm(
-          localProfile
-        );
-
-        setSettings(
-          localSettings
-        );
-      } catch (error) {
-        console.log(
-          "LOAD DATA ERROR:",
-          error
-        );
-      } finally {
-        if (
-          mounted
-        ) {
-          setLoadingData(
-            false
-          );
-        }
-      }
-    }
-
-
-    loadData();
-
-
-    return () => {
-      mounted =
-        false;
-    };
-  }, []);
-
-
-  /* =======================================================
-     LOAD SUPABASE DATA
-  ======================================================= */
-
-  useEffect(() => {
-    let mounted =
-      true;
-
-
-    async function loadRemoteData() {
-      /*
-         Пока пользователь не вошёл,
-         не пытаемся читать пользовательские данные.
-      */
-
-      if (
-        !authUser?.id
-      ) {
+      if (!mounted) {
         return;
       }
 
+      /*
+         Всегда приводим локальные продукты
+         к массиву перед объединением.
+      */
 
-      try {
-        const [
-          remoteProducts,
-          remoteRecipes,
-          remoteProfile,
-        ] =
-          await Promise.all([
-            getSupabaseProducts()
-              .catch(
-                () => []
-              ),
-
-            getSupabaseRecipes()
-              .catch(
-                () => []
-              ),
-
-            getProfile(
-              authUser.id
-            ),
-          ]);
-
-
-        if (
-          !mounted
-        ) {
-          return;
-        }
-
-
-        /*
-           Важный принцип:
-
-           Supabase не должен уничтожать локальные
-           авторские изменения.
-
-           Поэтому сначала берём текущую локальную
-           копию, затем аккуратно добавляем удалённые
-           данные.
-        */
-
-        setProducts(
-          (
-            current
-          ) => {
-            const remote =
-              normalizeProducts(
-                remoteProducts
-              );
-
-
-            const merged = {
-              ...current,
-            };
-
-
-            Object.entries(
-              remote
-            ).forEach(
-              ([
-                name,
-                value,
-              ]) => {
-                /*
-                   Если продукт существует локально,
-                   считаем локальную версию главной.
-
-                   Если продукта нет локально,
-                   добавляем его из Supabase.
-                */
-
-                if (
-                  !Object.prototype.hasOwnProperty.call(
-                    merged,
-                    name
-                  )
-                ) {
-                  merged[
-                    name
-                  ] =
-                    value;
-                }
-              }
-            );
-
-
-            return merged;
-          }
+      const localProducts =
+        ensureProductsArray(
+          localData?.products
         );
 
+      /*
+         Объединяем стартовые продукты
+         с локальными изменениями.
+      */
 
-        setRecipes(
-          (
-            current
-          ) => {
-            const remote =
-              normalizeRecipes(
-                remoteRecipes
-              );
-
-
-            const currentById =
-              new Map(
-                current.map(
-                  (
-                    recipe
-                  ) => [
-                    String(
-                      recipe.id
-                    ),
-                    recipe,
-                  ]
-                )
-              );
-
-
-            remote.forEach(
-              (
-                recipe
-              ) => {
-                const id =
-                  String(
-                    recipe.id
-                  );
-
-
-                if (
-                  !currentById.has(
-                    id
-                  )
-                ) {
-                  currentById.set(
-                    id,
-                    recipe
-                  );
-                }
-              }
-            );
-
-
-            return Array.from(
-              currentById.values()
-            );
-          }
+      const mergedProducts =
+        mergeProducts(
+          ALL_INITIAL_PRODUCTS,
+          localProducts,
+          Array.isArray(
+            localData?.deletedProducts
+          )
+            ? localData.deletedProducts
+            : []
         );
 
+      /*
+         Дополнительная защита:
+         products в state НИКОГДА
+         не должен стать объектом.
+      */
 
-        if (
-          remoteProfile
-        ) {
-          const nextProfile = {
-            ...profile,
-            name:
-              remoteProfile.name ||
-              profile.name,
+      const safeProducts =
+        Array.isArray(
+          mergedProducts
+        )
+          ? mergedProducts
+          : [
+              ...ALL_INITIAL_PRODUCTS,
+            ];
 
-            avatarUrl:
-              remoteProfile.avatar_url ||
-              profile.avatarUrl,
-          };
+      /*
+         Рецепты.
+      */
 
+      const mergedRecipes =
+        mergeRecipes(
+          INITIAL_RECIPES,
+          Array.isArray(
+            localData?.recipes
+          )
+            ? localData.recipes
+            : [],
+          Array.isArray(
+            localData?.deletedRecipes
+          )
+            ? localData.deletedRecipes
+            : []
+        );
 
-          setProfile(
-            nextProfile
-          );
+      const safeRecipes =
+        Array.isArray(
+          mergedRecipes
+        )
+          ? mergedRecipes
+          : [
+              ...INITIAL_RECIPES,
+            ];
 
-          setProfileForm(
-            nextProfile
-          );
+      setProducts(
+        safeProducts
+      );
 
+      setRecipes(
+        safeRecipes
+      );
 
-          await saveLocalProfile(
-            nextProfile
-          );
-        }
-      } catch (error) {
-        console.log(
-          "REMOTE DATA LOAD ERROR:",
-          error
+      setFavorites(
+        Array.isArray(
+          localData?.favorites
+        )
+          ? localData.favorites
+          : []
+      );
+
+      setDiary(
+        Array.isArray(
+          localData?.diary
+        )
+          ? localData.diary
+          : []
+      );
+
+      setDeletedProducts(
+        Array.isArray(
+          localData?.deletedProducts
+        )
+          ? localData.deletedProducts
+          : []
+      );
+
+      setDeletedRecipes(
+        Array.isArray(
+          localData?.deletedRecipes
+        )
+          ? localData.deletedRecipes
+          : []
+      );
+
+      setProfile(
+        localProfile
+      );
+
+      setProfileForm(
+        localProfile
+      );
+
+      setSettings(
+        localSettings
+      );
+
+    } catch (error) {
+      console.log(
+        "LOAD DATA ERROR:",
+        error
+      );
+
+      /*
+         Даже при ошибке загрузки
+         products остаётся массивом.
+      */
+
+      if (mounted) {
+        setProducts([
+          ...ALL_INITIAL_PRODUCTS,
+        ]);
+
+        setRecipes([
+          ...INITIAL_RECIPES,
+        ]);
+      }
+
+    } finally {
+      if (mounted) {
+        setLoadingData(
+          false
         );
       }
     }
+  }
 
+  loadData();
 
-    loadRemoteData();
-
-
-    return () => {
-      mounted =
-        false;
-    };
-  }, [
-    authUser?.id,
-  ]);
+  return () => {
+    mounted = false;
+  };
+}, []);
 
 
   /* =======================================================
-     PERSIST DATA
-  ======================================================= */
+   LOAD SUPABASE DATA
+======================================================= */
 
-  useEffect(() => {
-    if (
-      loadingData
-    ) {
+useEffect(() => {
+  let mounted = true;
+
+  async function loadRemoteData() {
+    /*
+       Пока пользователь не вошёл,
+       не читаем пользовательские данные.
+    */
+
+    if (!authUser?.id) {
       return;
     }
 
+    try {
+      const [
+        remoteProducts,
+        remoteRecipes,
+        remoteProfile,
+      ] = await Promise.all([
+        getSupabaseProducts().catch(
+          () => []
+        ),
 
-    saveLocalPaCookData({
-      products,
-      recipes,
-      favorites,
-      diary,
-      deletedProducts,
-      deletedRecipes,
-    });
-  }, [
-    products,
-    recipes,
-    favorites,
-    diary,
-    deletedProducts,
-    deletedRecipes,
-    loadingData,
-  ]);
+        getSupabaseRecipes().catch(
+          () => []
+        ),
+
+        getProfile(
+          authUser.id
+        ),
+      ]);
+
+      if (!mounted) {
+        return;
+      }
+
+      /* =================================================
+         PRODUCTS
+
+         products в приложении всегда МАССИВ.
+
+         Локальные продукты имеют приоритет.
+         Продукты из Supabase добавляются только
+         если такого продукта ещё нет локально.
+      ================================================= */
+
+      setProducts(
+        (current) => {
+          const currentArray =
+            ensureProductsArray(
+              current
+            );
+
+          const remoteArray =
+            ensureProductsArray(
+              remoteProducts
+            );
+
+          const productMap =
+            new Map();
+
+          /*
+             Сначала локальные продукты.
+             Они имеют приоритет.
+          */
+
+          currentArray.forEach(
+            (product) => {
+              const normalized =
+                normalizeProduct(
+                  product
+                );
+
+              if (
+                normalized?.name
+              ) {
+                productMap.set(
+                  normalized.name,
+                  normalized
+                );
+              }
+            }
+          );
+
+          /*
+             Затем добавляем продукты
+             из Supabase, только если
+             такого имени ещё нет.
+          */
+
+          remoteArray.forEach(
+            (product) => {
+              const normalized =
+                normalizeProduct(
+                  product
+                );
+
+              if (
+                !normalized?.name
+              ) {
+                return;
+              }
+
+              if (
+                !productMap.has(
+                  normalized.name
+                )
+              ) {
+                productMap.set(
+                  normalized.name,
+                  normalized
+                );
+              }
+            }
+          );
+
+          return Array.from(
+            productMap.values()
+          );
+        }
+      );
+
+      /* =================================================
+         RECIPES
+      ================================================= */
+
+      setRecipes(
+        (current) => {
+          const currentRecipes =
+            Array.isArray(
+              current
+            )
+              ? normalizeRecipes(
+                  current
+                )
+              : [];
+
+          const remote =
+            normalizeRecipes(
+              remoteRecipes
+            );
+
+          const currentById =
+            new Map();
+
+          currentRecipes.forEach(
+            (recipe) => {
+              currentById.set(
+                String(
+                  recipe.id
+                ),
+                recipe
+              );
+            }
+          );
+
+          /*
+             Локальные рецепты имеют приоритет.
+             Поэтому удалённые добавляем только
+             если такого id ещё нет.
+          */
+
+          remote.forEach(
+            (recipe) => {
+              const id =
+                String(
+                  recipe.id
+                );
+
+              if (
+                !currentById.has(
+                  id
+                )
+              ) {
+                currentById.set(
+                  id,
+                  recipe
+                );
+              }
+            }
+          );
+
+          return Array.from(
+            currentById.values()
+          );
+        }
+      );
+
+      /* =================================================
+         PROFILE
+      ================================================= */
+
+      if (remoteProfile) {
+        const nextProfile = {
+          ...profile,
+
+          name:
+            remoteProfile.name ||
+            profile.name,
+
+          avatarUrl:
+            remoteProfile.avatar_url ||
+            profile.avatarUrl,
+        };
+
+        setProfile(
+          nextProfile
+        );
+
+        setProfileForm(
+          nextProfile
+        );
+
+        await saveLocalProfile(
+          nextProfile
+        );
+      }
+
+    } catch (error) {
+      console.log(
+        "REMOTE DATA LOAD ERROR:",
+        error
+      );
+    }
+  }
+
+  loadRemoteData();
+
+  return () => {
+    mounted = false;
+  };
+}, [
+  authUser?.id,
+]);
+
+  /* =======================================================
+   PERSIST DATA
+======================================================= */
+
+useEffect(() => {
+  if (loadingData) {
+    return;
+  }
+
+  saveLocalPaCookData({
+    products:
+      ensureProductsArray(
+        products
+      ),
+
+    recipes:
+      Array.isArray(
+        recipes
+      )
+        ? recipes
+        : [],
+
+    favorites:
+      Array.isArray(
+        favorites
+      )
+        ? favorites
+        : [],
+
+    diary:
+      Array.isArray(
+        diary
+      )
+        ? diary
+        : [],
+
+    deletedProducts:
+      Array.isArray(
+        deletedProducts
+      )
+        ? deletedProducts
+        : [],
+
+    deletedRecipes:
+      Array.isArray(
+        deletedRecipes
+      )
+        ? deletedRecipes
+        : [],
+  });
+}, [
+  products,
+  recipes,
+  favorites,
+  diary,
+  deletedProducts,
+  deletedRecipes,
+  loadingData,
+]);
 
 
   /* =======================================================
@@ -6466,49 +6802,56 @@ export default function App() {
       recipeCategory,
     ]);
 
+/* =======================================================
+   FILTERED PRODUCTS
+======================================================= */
 
-  /* =======================================================
-     FILTERED PRODUCTS
-  ======================================================= */
+const filteredProducts =
+  useMemo(() => {
+    const query =
+      cleanString(
+        productsSearch
+      ).toLowerCase();
 
-  const filteredProducts =
-    useMemo(() => {
-      const query =
-        cleanString(
-          productsSearch
-        ).toLowerCase();
-
-
-      return Object.entries(
+    const productsArray =
+      ensureProductsArray(
         products
-      )
-        .filter(
-          ([
-            name,
-          ]) =>
+      );
+
+    return productsArray
+      .filter(
+        (product) => {
+          const name =
+            cleanString(
+              product?.name
+            );
+
+          return (
             !query ||
             name
               .toLowerCase()
               .includes(
                 query
               )
-        )
-        .sort(
-          (
-            a,
-            b
-          ) =>
-            a[0].localeCompare(
-              b[0],
-              "ru"
-            )
-        );
-    }, [
-      products,
-      productsSearch,
-    ]);
-
-
+          );
+        }
+      )
+      .sort(
+        (a, b) =>
+          cleanString(
+            a?.name
+          ).localeCompare(
+            cleanString(
+              b?.name
+            ),
+            "ru"
+          )
+      );
+  }, [
+    products,
+    productsSearch,
+  ]);
+  
   /* =======================================================
      FAVORITE CHECK
   ======================================================= */
@@ -6780,10 +7123,11 @@ export default function App() {
   }
 
   // ============================================================
-  // PRODUCT SAVE
-  // ============================================================
+// PRODUCT SAVE
+// ============================================================
 
-  async function saveProduct() {
+async function saveProduct() {
+  try {
     const name =
       String(
         productForm.name || ""
@@ -6835,19 +7179,26 @@ export default function App() {
           )
         : null;
 
+    // Всегда работаем с массивом
+    const productsArray =
+      ensureProductsArray(
+        products
+      );
+
+    // Проверяем дубликат названия
     const existing =
-      products.find(
+      productsArray.find(
         (item) =>
           String(
-            item.name
+            item?.name || ""
           ).toLowerCase() ===
-          name.toLowerCase() &&
+            name.toLowerCase() &&
           String(
-            item.name
+            item?.name || ""
           ).toLowerCase() !==
-          String(
-            oldName || ""
-          ).toLowerCase()
+            String(
+              oldName || ""
+            ).toLowerCase()
       );
 
     if (existing) {
@@ -6863,22 +7214,25 @@ export default function App() {
       return;
     }
 
+    // Если редактируем существующий продукт —
+    // сохраняем его ID
+    const existingProduct =
+      oldName
+        ? productsArray.find(
+            (item) =>
+              String(
+                item?.name || ""
+              ) ===
+              String(
+                oldName
+              )
+          )
+        : null;
+
     const product = {
       id:
-        editingProductName
-          ? (
-              products.find(
-                (item) =>
-                  String(
-                    item.name
-                  ) ===
-                  String(
-                    editingProductName
-                  )
-              )?.id ||
-              `user-product-${Date.now()}`
-            )
-          : `user-product-${Date.now()}`,
+        existingProduct?.id ||
+        `user-product-${Date.now()}`,
 
       name,
 
@@ -6907,26 +7261,32 @@ export default function App() {
     };
 
     let nextProducts = [
-      ...products,
+      ...productsArray,
     ];
 
-    if (editingProductName) {
+    if (oldName) {
       nextProducts =
         nextProducts.map(
           (item) =>
-            String(item.name) ===
             String(
-              editingProductName
+              item?.name || ""
+            ) ===
+            String(
+              oldName
             )
               ? product
               : item
         );
     } else {
-      nextProducts.push(product);
+      nextProducts.push(
+        product
+      );
     }
 
+    // Финальная защита:
+    // products всегда должен быть массивом
     nextProducts =
-      mergeProducts(
+      ensureProductsArray(
         nextProducts
       );
 
@@ -6934,12 +7294,22 @@ export default function App() {
       nextProducts
     );
 
+    // deletedProducts хранит имена,
+    // поэтому удаляем именно старое имя
     const nextDeletedProducts =
-      deletedProducts.filter(
-        (item) =>
-          String(item) !==
-          String(product.id)
-      );
+      Array.isArray(
+        deletedProducts
+      )
+        ? deletedProducts.filter(
+            (item) =>
+              String(
+                item
+              ) !==
+              String(
+                oldName || ""
+              )
+          )
+        : [];
 
     setDeletedProducts(
       nextDeletedProducts
@@ -6978,7 +7348,29 @@ export default function App() {
     setSaving(false);
 
     setScreen("author");
+
+  } catch (error) {
+    console.log(
+      "SAVE PRODUCT ERROR:",
+      error
+    );
+
+    setSaving(false);
+
+    if (
+      typeof window !== "undefined" &&
+      window.alert
+    ) {
+      window.alert(
+        "Не удалось сохранить продукт: " +
+          String(
+            error?.message ||
+              error
+          )
+      );
+    }
   }
+}
 
   // ============================================================
   // START PRODUCT EDIT
@@ -7058,86 +7450,109 @@ export default function App() {
     setScreen("authorProduct");
   }
 
-  // ============================================================
-  // DELETE PRODUCT
-  // ============================================================
+ // ============================================================
+// DELETE PRODUCT
+// ============================================================
 
-  async function removeProduct(
-    product
-  ) {
-    if (!product) {
-      return;
-    }
-
-    const confirmed =
-      await confirmDelete(
-        `Удалить продукт «${product.name}»?`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const productId =
-      product.id;
-
-    const nextProducts =
-      products.filter(
-        (item) =>
-          String(item.id) !==
-          String(productId)
-      );
-
-    const nextDeletedProducts = [
-      ...deletedProducts,
-      productId,
-    ].filter(
-      (value, index, array) =>
-        array.findIndex(
-          (item) =>
-            String(item) ===
-            String(value)
-        ) === index
-    );
-
-    setProducts(
-      nextProducts
-    );
-
-    setDeletedProducts(
-      nextDeletedProducts
-    );
-
-    await persistEverything({
-      products:
-        nextProducts,
-
-      deletedProducts:
-        nextDeletedProducts,
-    });
-
-    if (authUser) {
-      await safeSupabaseDelete(
-        "products",
-        productId
-      );
-    }
-
-    if (
-      editingProductName ===
-      product.name
-    ) {
-      setEditingProductName(
-        null
-      );
-    }
+async function removeProduct(
+  product
+) {
+  if (!product) {
+    return;
   }
 
-  // ============================================================
-  // RECIPE SAVE
-  // ============================================================
+  const confirmed =
+    await confirmDelete(
+      `Удалить продукт «${product.name}»?`
+    );
 
-  async function saveRecipe() {
+  if (!confirmed) {
+    return;
+  }
+
+  const productId =
+    product.id;
+
+  // Всегда работаем с массивом
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+
+  const nextProducts =
+    productsArray.filter(
+      (item) =>
+        String(
+          item?.id
+        ) !==
+        String(
+          productId
+        )
+    );
+
+  // deletedProducts храним по ID
+  const deletedArray =
+    Array.isArray(
+      deletedProducts
+    )
+      ? deletedProducts
+      : [];
+
+  const nextDeletedProducts = [
+    ...deletedArray,
+    productId,
+  ].filter(
+    (value, index, array) =>
+      array.findIndex(
+        (item) =>
+          String(
+            item
+          ) ===
+          String(
+            value
+          )
+      ) === index
+  );
+
+  setProducts(
+    nextProducts
+  );
+
+  setDeletedProducts(
+    nextDeletedProducts
+  );
+
+  await persistEverything({
+    products:
+      nextProducts,
+
+    deletedProducts:
+      nextDeletedProducts,
+  });
+
+  if (authUser) {
+    await safeSupabaseDelete(
+      "products",
+      productId
+    );
+  }
+
+  if (
+    editingProductName ===
+    product.name
+  ) {
+    setEditingProductName(
+      null
+    );
+  }
+}
+
+  // ============================================================
+// RECIPE SAVE
+// ============================================================
+
+async function saveRecipe() {
+  try {
     const title =
       String(
         recipeForm.title || ""
@@ -7173,40 +7588,96 @@ export default function App() {
         recipeForm.image || ""
       ).trim();
 
+    const productsArray =
+      ensureProductsArray(
+        products
+      );
+
+    const recipeArray =
+      Array.isArray(
+        recipes
+      )
+        ? normalizeRecipes(
+            recipes
+          )
+        : [];
+
+    // ----------------------------------------------------------
+    // INGREDIENTS
+    // ----------------------------------------------------------
+
     const ingredients =
       Array.isArray(
         recipeForm.ingredients
       )
         ? recipeForm.ingredients
             .map(
-              (item) => ({
-                productId:
-                  item.productId ||
-                  item.product_id ||
-                  "",
+              (item) => {
+                const productId =
+                  String(
+                    item?.productId ||
+                      item?.product_id ||
+                      ""
+                  ).trim();
 
-                product_id:
-                  item.productId ||
-                  item.product_id ||
-                  "",
+                const productName =
+                  String(
+                    item?.product ||
+                      item?.productName ||
+                      ""
+                  ).trim();
 
-                grams:
+                const grams =
                   Number(
-                    item.grams
-                  ) || 0,
+                    item?.grams ??
+                      item?.amount ??
+                      0
+                  ) || 0;
 
-                amount:
-                  Number(
-                    item.grams
-                  ) || 0,
-              })
+                // Если форма хранит ID,
+                // находим настоящее название продукта
+                const foundProduct =
+                  productId
+                    ? productsArray.find(
+                        (product) =>
+                          String(
+                            product?.id
+                          ) ===
+                          productId
+                      )
+                    : null;
+
+                const finalProductName =
+                  productName ||
+                  foundProduct?.name ||
+                  "";
+
+                return {
+                  product:
+                    finalProductName,
+
+                  productId,
+
+                  product_id:
+                    productId,
+
+                  grams,
+
+                  amount:
+                    grams,
+                };
+              }
             )
             .filter(
               (item) =>
-                item.productId &&
+                item.product &&
                 item.grams > 0
             )
         : [];
+
+    // ----------------------------------------------------------
+    // STEPS
+    // ----------------------------------------------------------
 
     const steps =
       Array.isArray(
@@ -7230,20 +7701,35 @@ export default function App() {
             )
             .filter(Boolean);
 
+    // ----------------------------------------------------------
+    // RECIPE ID
+    // ----------------------------------------------------------
+
     const recipeId =
       editingRecipeId ||
       `user-recipe-${Date.now()}`;
 
+    // ----------------------------------------------------------
+    // EXISTING RECIPE
+    // ----------------------------------------------------------
+
     const existingRecipe =
-      recipes.find(
+      recipeArray.find(
         (item) =>
-          String(item.id) ===
-          String(recipeId)
-      );
+          String(
+            item?.id
+          ) ===
+          String(
+            recipeId
+          )
+      ) || null;
+
+    // ----------------------------------------------------------
+    // RECIPE
+    // ----------------------------------------------------------
 
     const recipe = {
-      ...(existingRecipe ||
-        {}),
+      ...(existingRecipe || {}),
 
       id:
         recipeId,
@@ -7297,25 +7783,58 @@ export default function App() {
         new Date().toISOString(),
     };
 
-    const nextRecipes =
-      mergeRecipes([
-        ...recipes.filter(
-          (item) =>
-            String(item.id) !==
-            String(recipeId)
-        ),
-        recipe,
-      ]);
+    // ----------------------------------------------------------
+    // NEXT RECIPES
+    // ----------------------------------------------------------
 
-    const nextDeletedRecipes =
-      deletedRecipes.filter(
+    const recipesWithoutCurrent =
+      recipeArray.filter(
         (item) =>
-          String(item) !==
-          String(recipeId)
+          String(
+            item?.id
+          ) !==
+          String(
+            recipeId
+          )
       );
 
+    const nextRecipes =
+      mergeRecipes(
+        recipesWithoutCurrent,
+        [recipe],
+        []
+      );
+
+    const deletedArray =
+      Array.isArray(
+        deletedRecipes
+      )
+        ? deletedRecipes
+        : [];
+
+    const nextDeletedRecipes =
+      deletedArray.filter(
+        (item) =>
+          String(
+            item
+          ) !==
+          String(
+            recipeId
+          )
+      );
+
+    // ----------------------------------------------------------
+    // STATE
+    // ----------------------------------------------------------
+
     setRecipes(
-      nextRecipes
+      Array.isArray(
+        nextRecipes
+      )
+        ? nextRecipes
+        : [
+            ...recipeArray,
+          ]
     );
 
     setDeletedRecipes(
@@ -7326,26 +7845,49 @@ export default function App() {
       null
     );
 
+    // ----------------------------------------------------------
+    // RESET FORM
+    // ----------------------------------------------------------
+
     setRecipeForm({
       title: "",
       category: "Другое",
       description: "",
       image: "",
-      ingredients: [],
-      steps: [],
+      ingredients: [
+        {
+          product: "",
+          productId: "",
+          product_id: "",
+          grams: "",
+        },
+      ],
+      steps: [""],
       pro: false,
       servings: 1,
       prepTime: 0,
       cookTime: 0,
     });
 
+    // ----------------------------------------------------------
+    // LOCAL SAVE
+    // ----------------------------------------------------------
+
     await persistEverything({
       recipes:
-        nextRecipes,
+        Array.isArray(
+          nextRecipes
+        )
+          ? nextRecipes
+          : recipeArray,
 
       deletedRecipes:
         nextDeletedRecipes,
     });
+
+    // ----------------------------------------------------------
+    // SUPABASE SAVE
+    // ----------------------------------------------------------
 
     if (authUser) {
       await safeSupabaseUpsert(
@@ -7353,6 +7895,7 @@ export default function App() {
         [
           {
             ...recipe,
+
             user_id:
               authUser.id,
           },
@@ -7363,225 +7906,346 @@ export default function App() {
     setSaving(false);
 
     setScreen("author");
+
+  } catch (error) {
+    console.log(
+      "SAVE RECIPE ERROR:",
+      error
+    );
+
+    setSaving(false);
+
+    if (
+      typeof window !== "undefined" &&
+      window.alert
+    ) {
+      window.alert(
+        "Не удалось сохранить рецепт: " +
+          String(
+            error?.message ||
+              error
+          )
+      );
+    }
+  }
+}
+
+  // ============================================================
+// START RECIPE EDIT
+// ============================================================
+
+function startEditRecipe(
+  recipe
+) {
+  if (!recipe) {
+    return;
   }
 
-  // ============================================================
-  // START RECIPE EDIT
-  // ============================================================
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
 
-  function startEditRecipe(
-    recipe
-  ) {
-    if (!recipe) {
-      return;
-    }
+  const sourceIngredients =
+    Array.isArray(
+      recipe.ingredients
+    )
+      ? recipe.ingredients
+      : [];
 
-    const sourceIngredients =
-      Array.isArray(
-        recipe.ingredients
-      )
-        ? recipe.ingredients
-        : [];
+  const normalizedIngredients =
+    sourceIngredients.map(
+      (item) => {
+        const productId =
+          String(
+            item?.productId ||
+              item?.product_id ||
+              item?.product?.id ||
+              ""
+          ).trim();
 
-    const normalizedIngredients =
-      sourceIngredients.map(
-        (item) => ({
-          productId:
-            item.productId ||
-            item.product_id ||
-            item.product?.id ||
-            "",
+        const productName =
+          String(
+            typeof item?.product ===
+              "string"
+              ? item.product
+              : item?.productName ||
+                ""
+          ).trim();
+
+        const foundProduct =
+          productId
+            ? productsArray.find(
+                (product) =>
+                  String(
+                    product?.id
+                  ) ===
+                  productId
+              )
+            : null;
+
+        const finalProductName =
+          productName ||
+          foundProduct?.name ||
+          "";
+
+        return {
+          product:
+            finalProductName,
+
+          productId,
+
+          product_id:
+            productId,
 
           grams:
             Number(
-              item.grams ??
-                item.amount ??
-                item.weight ??
+              item?.grams ??
+                item?.amount ??
+                item?.weight ??
                 0
             ) || 0,
-        })
-      );
 
-    const sourceSteps =
-      Array.isArray(
-        recipe.steps
-      )
-        ? recipe.steps
-        : [];
-
-    setEditingRecipeId(
-      recipe.id
+          amount:
+            Number(
+              item?.grams ??
+                item?.amount ??
+                item?.weight ??
+                0
+            ) || 0,
+        };
+      }
     );
 
-    setRecipeForm({
-      title:
-        recipe.title ||
-        recipe.name ||
-        "",
+  const sourceSteps =
+    Array.isArray(
+      recipe.steps
+    )
+      ? recipe.steps
+      : [];
 
-      category:
-        recipe.category ||
-        "Другое",
+  setEditingRecipeId(
+    recipe.id
+  );
 
-      description:
-        recipe.description ||
-        "",
-
-      image:
-        recipe.image ||
-        recipe.image_url ||
-        "",
-
-      ingredients:
-        normalizedIngredients,
-
-      steps:
-        sourceSteps,
-
-      pro:
-        Boolean(
-          recipe.pro
-        ),
-
-      servings:
-        Number(
-          recipe.servings
-        ) || 1,
-
-      prepTime:
-        Number(
-          recipe.prepTime
-        ) || 0,
-
-      cookTime:
-        Number(
-          recipe.cookTime
-        ) || 0,
-    });
-
-    setScreen("authorRecipe");
-  }
-
-  // ============================================================
-  // START NEW RECIPE
-  // ============================================================
-
-  function startNewRecipe() {
-    setEditingRecipeId(
-      null
-    );
-
-    setRecipeForm({
-      title: "",
-      category: "Другое",
-      description: "",
-      image: "",
-      ingredients: [],
-      steps: [],
-      pro: false,
-      servings: 1,
-      prepTime: 0,
-      cookTime: 0,
-    });
-
-    setScreen("authorRecipe");
-  }
-
-  // ============================================================
-  // DELETE RECIPE
-  // ============================================================
-
-  async function removeRecipe(
-    recipe
-  ) {
-    if (!recipe) {
-      return;
-    }
-
-    const title =
+  setRecipeForm({
+    title:
       recipe.title ||
       recipe.name ||
-      "рецепт";
+      "",
 
-    const confirmed =
-      await confirmDelete(
-        `Удалить рецепт «${title}»?`
-      );
+    category:
+      recipe.category ||
+      "Другое",
 
-    if (!confirmed) {
-      return;
-    }
+    description:
+      recipe.description ||
+      "",
 
-    const recipeId =
-      recipe.id;
+    image:
+      recipe.image ||
+      recipe.image_url ||
+      "",
 
-    const nextRecipes =
-      recipes.filter(
-        (item) =>
-          String(item.id) !==
-          String(recipeId)
-      );
+    ingredients:
+      normalizedIngredients.length
+        ? normalizedIngredients
+        : [
+            {
+              product: "",
+              productId: "",
+              product_id: "",
+              grams: "",
+              amount: "",
+            },
+          ],
 
-    const nextDeletedRecipes = [
-      ...deletedRecipes,
-      recipeId,
-    ].filter(
-      (value, index, array) =>
-        array.findIndex(
-          (item) =>
-            String(item) ===
-            String(value)
-        ) === index
-    );
+    steps:
+      sourceSteps.length
+        ? sourceSteps
+        : [""],
 
-    const nextFavorites =
-      favorites.filter(
-        (id) =>
-          String(id) !==
-          String(recipeId)
-      );
+    pro:
+      Boolean(
+        recipe.pro
+      ),
 
-    setRecipes(
-      nextRecipes
-    );
+    servings:
+      Number(
+        recipe.servings
+      ) || 1,
 
-    setDeletedRecipes(
-      nextDeletedRecipes
-    );
+    prepTime:
+      Number(
+        recipe.prepTime
+      ) || 0,
 
-    setFavorites(
-      nextFavorites
-    );
+    cookTime:
+      Number(
+        recipe.cookTime
+      ) || 0,
+  });
 
-    await persistEverything({
-      recipes:
-        nextRecipes,
+  setScreen(
+    "authorRecipe"
+  );
+}
 
-      deletedRecipes:
-        nextDeletedRecipes,
+  // ============================================================
+// START NEW RECIPE
+// ============================================================
 
-      favorites:
-        nextFavorites,
-    });
+function startNewRecipe() {
+  setEditingRecipeId(
+    null
+  );
 
-    if (authUser) {
-      await safeSupabaseDelete(
-        "recipes",
-        recipeId
-      );
-    }
+  setRecipeForm({
+    title: "",
+    category: "Другое",
+    description: "",
+    image: "",
 
-    if (
-      String(
-        selectedRecipeId
-      ) ===
-      String(recipeId)
-    ) {
-      setSelectedRecipeId(
-        null
-      );
-    }
+    ingredients: [
+      {
+        product: "",
+        productId: "",
+        product_id: "",
+        grams: "",
+        amount: "",
+      },
+    ],
+
+    steps: [
+      "",
+    ],
+
+    pro: false,
+    servings: 1,
+    prepTime: 0,
+    cookTime: 0,
+  });
+
+  setScreen(
+    "authorRecipe"
+  );
+}
+
+ // ============================================================
+ // DELETE RECIPE
+ // ============================================================
+
+async function removeRecipe(
+  recipe
+) {
+  if (!recipe) {
+    return;
   }
+  const title =
+    recipe.title ||
+    recipe.name ||
+    "рецепт";
+  const confirmed =
+    await confirmDelete(
+      `Удалить рецепт «${title}»?`
+    );
+  if (!confirmed) {
+    return;
+  }
+  const recipeId =
+    recipe.id;
+  // Всегда работаем с массивом
+  const recipesArray =
+    Array.isArray(
+      recipes
+    )
+      ? recipes
+      : [];
+  const nextRecipes =
+    recipesArray.filter(
+      (item) =>
+        String(
+          item?.id
+        ) !==
+        String(
+          recipeId
+        )
+    );
+  // deletedRecipes всегда массив
+  const deletedArray =
+    Array.isArray(
+      deletedRecipes
+    )
+      ? deletedRecipes
+      : [];
+  const nextDeletedRecipes = [
+    ...deletedArray,
+    recipeId,
+  ].filter(
+    (value, index, array) =>
+      array.findIndex(
+        (item) =>
+          String(
+            item
+          ) ===
+          String(
+            value
+          )
+      ) === index
+  );
+  // Убираем рецепт из избранного
+  const favoritesArray =
+    Array.isArray(
+      favorites
+    )
+      ? favorites
+      : [];
+  const nextFavorites =
+    favoritesArray.filter(
+      (id) =>
+        String(
+          id
+        ) !==
+        String(
+          recipeId
+        )
+    );
+  setRecipes(
+    nextRecipes
+  );
+  setDeletedRecipes(
+    nextDeletedRecipes
+  );
+  setFavorites(
+    nextFavorites
+  );
+  await persistEverything({
+    recipes:
+      nextRecipes,
+    deletedRecipes:
+      nextDeletedRecipes,
+    favorites:
+      nextFavorites,
+  });
+  if (authUser) {
+    await safeSupabaseDelete(
+      "recipes",
+      recipeId
+    );
+  }
+  if (
+    String(
+      selectedRecipeId
+    ) ===
+    String(
+      recipeId
+    )
+  ) {
+    setSelectedRecipeId(
+      null
+    );
+  }
+}
 
   // ============================================================
   // PROFILE SAVE
@@ -7733,243 +8397,289 @@ export default function App() {
   }
 
   // ============================================================
-  // LOGOUT
-  // IMPORTANT: ONLY ONE logoutUser FUNCTION
-  // ============================================================
+// LOGOUT
+// IMPORTANT: ONLY ONE logoutUser FUNCTION
+// ============================================================
 
-  async function logoutUser() {
-    try {
-      await AsyncStorage.removeItem(
-        PACOOK_SESSION
-      );
-    } catch (error) {
-      console.log(
-        "Session remove error:",
-        error
-      );
-    }
-
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.log(
-        "Supabase logout error:",
-        error
-      );
-    }
-
-    setAuthUser(null);
-    setAuthorMode(false);
-    setAuthorUnlocked(false);
-    setScreen("home");
+async function logoutUser() {
+  try {
+    await AsyncStorage.removeItem(
+      STORAGE_KEYS.session
+    );
+  } catch (error) {
+    console.log(
+      "Session remove error:",
+      error
+    );
   }
 
-  // ============================================================
-  // DIARY
-  // ============================================================
+  try {
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.log(
+      "Supabase logout error:",
+      error
+    );
+  }
 
-  function getDiaryForDay(
-    day
-  ) {
-    return Array.isArray(
+  setAuthUser(null);
+  setAuthorMode(false);
+  setAuthorUnlocked(false);
+  setScreen("home");
+}
+
+  // ============================================================
+// DIARY
+// ============================================================
+
+function getDiaryForDay(
+  day
+) {
+  const diaryArray =
+    Array.isArray(
       diary
     )
-      ? diary.filter(
-          (item) =>
-            Number(
-              item.day
-            ) === Number(day)
-        )
+      ? diary
       : [];
-  }
 
-  function getDiaryCalories(
-    day
-  ) {
-    const dayItems =
-      getDiaryForDay(day);
+  return diaryArray.filter(
+    (item) =>
+      Number(
+        item?.day
+      ) ===
+      Number(
+        day
+      )
+  );
+}
 
-    return dayItems.reduce(
-      (
-        total,
-        item
-      ) => {
-        const recipe =
-          recipes.find(
-            (recipeItem) =>
-              String(
-                recipeItem.id
-              ) ===
-              String(
-                item.recipeId
-              )
-          );
+function getDiaryCalories(
+  day
+) {
+  const dayItems =
+    getDiaryForDay(
+      day
+    );
 
-        if (!recipe) {
-          return total;
-        }
+  const recipesArray =
+    Array.isArray(
+      recipes
+    )
+      ? recipes
+      : [];
 
-        const nutrition =
-          calculateRecipeNutrition(
-            recipe
-          );
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
 
-        const servings =
-          Number(
-            item.servings
-          ) || 1;
-
-        return (
-          total +
-          Number(
-            nutrition.kcal
-          ) *
-            servings
+  return dayItems.reduce(
+    (
+      total,
+      item
+    ) => {
+      const recipe =
+        recipesArray.find(
+          (recipeItem) =>
+            String(
+              recipeItem?.id
+            ) ===
+            String(
+              item?.recipeId
+            )
         );
-      },
-      0
-    );
-  }
 
-  function getDiaryMacros(
-    day
-  ) {
-    const dayItems =
-      getDiaryForDay(day);
-
-    return dayItems.reduce(
-      (
-        total,
-        item
-      ) => {
-        const recipe =
-          recipes.find(
-            (recipeItem) =>
-              String(
-                recipeItem.id
-              ) ===
-              String(
-                item.recipeId
-              )
-          );
-
-        if (!recipe) {
-          return total;
-        }
-
-        const nutrition =
-          calculateRecipeNutrition(
-            recipe
-          );
-
-        const servings =
-          Number(
-            item.servings
-          ) || 1;
-
-        return {
-          protein:
-            total.protein +
-            Number(
-              nutrition.protein
-            ) *
-              servings,
-
-          fat:
-            total.fat +
-            Number(
-              nutrition.fat
-            ) *
-              servings,
-
-          carbs:
-            total.carbs +
-            Number(
-              nutrition.carbs
-            ) *
-              servings,
-        };
-      },
-      {
-        protein: 0,
-        fat: 0,
-        carbs: 0,
+      if (!recipe) {
+        return total;
       }
-    );
-  }
 
-  // ============================================================
-  // ADD DIARY MEAL
-  // ============================================================
+      const nutrition =
+        calculateRecipeNutrition(
+          recipe,
+          productsArray
+        );
 
-  async function addDiaryMeal() {
-    if (!diaryRecipeId) {
-      return;
-    }
-
-    const recipe =
-      recipes.find(
-        (item) =>
-          String(item.id) ===
-          String(
-            diaryRecipeId
-          )
-      );
-
-    if (!recipe) {
-      return;
-    }
-
-    const newMeal = {
-      id:
-        `diary-${Date.now()}`,
-
-      day:
+      const servings =
         Number(
-          diaryDay
-        ) || 1,
+          item?.servings
+        ) || 1;
 
-      meal:
-        diaryMeal ||
-        "Приём пищи",
+      return (
+        total +
+        Number(
+          nutrition?.perServing
+            ?.kcal ??
+            nutrition?.kcal ??
+            0
+        ) *
+          servings
+      );
+    },
+    0
+  );
+}
 
-      recipeId:
-        recipe.id,
-
-      servings:
-        1,
-
-      time:
-        diaryTime ||
-        "",
-    };
-
-    const nextDiary = [
-      ...diary,
-      newMeal,
-    ];
-
-    setDiary(
-      nextDiary
+function getDiaryMacros(
+  day
+) {
+  const dayItems =
+    getDiaryForDay(
+      day
     );
 
-    await persistEverything({
-      diary:
-        nextDiary,
-    });
+  const recipesArray =
+    Array.isArray(
+      recipes
+    )
+      ? recipes
+      : [];
 
-    setDiaryRecipeId(
-      ""
+  const productsArray =
+    ensureProductsArray(
+      products
     );
 
-    setDiaryTime(
-      ""
-    );
+  return dayItems.reduce(
+    (
+      total,
+      item
+    ) => {
+      const recipe =
+        recipesArray.find(
+          (recipeItem) =>
+            String(
+              recipeItem?.id
+            ) ===
+            String(
+              item?.recipeId
+            )
+        );
 
-    setEditingDiaryId(
-      null
-    );
+      if (!recipe) {
+        return total;
+      }
+
+      const nutrition =
+        calculateRecipeNutrition(
+          recipe,
+          productsArray
+        );
+
+      const servings =
+        Number(
+          item?.servings
+        ) || 1;
+
+      const macros =
+        nutrition?.perServing ||
+        nutrition ||
+        {};
+
+      return {
+        protein:
+          total.protein +
+          Number(
+            macros.protein ||
+              0
+          ) *
+            servings,
+
+        fat:
+          total.fat +
+          Number(
+            macros.fat ||
+              0
+          ) *
+            servings,
+
+        carbs:
+          total.carbs +
+          Number(
+            macros.carbs ||
+              0
+          ) *
+            servings,
+      };
+    },
+    {
+      protein: 0,
+      fat: 0,
+      carbs: 0,
+    }
+  );
+}
+
+  // ============================================================
+// ADD DIARY MEAL
+// ============================================================
+async function addDiaryMeal() {
+  if (!diaryRecipeId) {
+    return;
   }
+  const recipesArray =
+    Array.isArray(
+      recipes
+    )
+      ? recipes
+      : [];
+  const diaryArray =
+    Array.isArray(
+      diary
+    )
+      ? diary
+      : [];
+  const recipe =
+    recipesArray.find(
+      (item) =>
+        String(
+          item?.id
+        ) ===
+        String(
+          diaryRecipeId
+        )
+    );
+  if (!recipe) {
+    return;
+  }
+  const newMeal = {
+    id:
+      `diary-${Date.now()}`,
+    day:
+      Number(
+        diaryDay
+      ) || 1,
+    meal:
+      diaryMeal ||
+      "Приём пищи",
+    recipeId:
+      recipe.id,
+    servings:
+      1,
+    time:
+      diaryTime ||
+      "",
+  };
+  const nextDiary = [
+    ...diaryArray,
+    newMeal,
+  ];
+  setDiary(
+    nextDiary
+  );
+  await persistEverything({
+    diary:
+      nextDiary,
+  });
+  setDiaryRecipeId(
+    ""
+  );
+  setDiaryTime(
+    ""
+  );
+  setEditingDiaryId(
+    null
+  );
+}
 
   // ============================================================
   // EDIT DIARY MEAL
@@ -8009,188 +8719,232 @@ export default function App() {
   }
 
   // ============================================================
-  // UPDATE DIARY MEAL
-  // ============================================================
-
-  async function updateDiaryMeal() {
-    if (!editingDiaryId) {
-      await addDiaryMeal();
-      return;
-    }
-
-    const nextDiary =
-      diary.map(
-        (item) =>
-          String(item.id) ===
-          String(
-            editingDiaryId
-          )
-            ? {
-                ...item,
-
-                day:
-                  Number(
-                    diaryDay
-                  ) || 1,
-
-                meal:
-                  diaryMeal ||
-                  "Приём пищи",
-
-                recipeId:
-                  diaryRecipeId ||
-                  item.recipeId,
-
-                time:
-                  diaryTime ||
-                  "",
-              }
-            : item
-      );
-
-    setDiary(
-      nextDiary
+// UPDATE DIARY MEAL
+// ============================================================
+async function updateDiaryMeal() {
+  if (!editingDiaryId) {
+    await addDiaryMeal();
+    return;
+  }
+  const diaryArray =
+    Array.isArray(
+      diary
+    )
+      ? diary
+      : [];
+  const nextDiary =
+    diaryArray.map(
+      (item) =>
+        String(
+          item?.id
+        ) ===
+        String(
+          editingDiaryId
+        )
+          ? {
+              ...item,
+              day:
+                Number(
+                  diaryDay
+                ) || 1,
+              meal:
+                diaryMeal ||
+                "Приём пищи",
+              recipeId:
+                diaryRecipeId ||
+                item?.recipeId,
+              time:
+                diaryTime ||
+                "",
+            }
+          : item
     );
+  setDiary(
+    nextDiary
+  );
+  await persistEverything({
+    diary:
+      nextDiary,
+  });
+  setEditingDiaryId(
+    null
+  );
+  setDiaryRecipeId(
+    ""
+  );
+  setDiaryTime(
+    ""
+  );
+}
 
-    await persistEverything({
-      diary:
-        nextDiary,
-    });
-
+  // ============================================================
+// DELETE DIARY MEAL
+// ============================================================
+async function removeDiaryMeal(
+  item
+) {
+  if (!item) {
+    return;
+  }
+  const diaryArray =
+    Array.isArray(
+      diary
+    )
+      ? diary
+      : [];
+  const nextDiary =
+    diaryArray.filter(
+      (diaryItem) =>
+        String(
+          diaryItem?.id
+        ) !==
+        String(
+          item?.id
+        )
+    );
+  setDiary(
+    nextDiary
+  );
+  await persistEverything({
+    diary:
+      nextDiary,
+  });
+  if (
+    String(
+      editingDiaryId
+    ) ===
+    String(
+      item?.id
+    )
+  ) {
     setEditingDiaryId(
       null
     );
-
-    setDiaryRecipeId(
-      ""
-    );
-
-    setDiaryTime(
-      ""
-    );
   }
+}
 
   // ============================================================
-  // DELETE DIARY MEAL
-  // ============================================================
-
-  async function removeDiaryMeal(
-    item
-  ) {
-    if (!item) {
-      return;
-    }
-
-    const nextDiary =
-      diary.filter(
-        (diaryItem) =>
-          String(
-            diaryItem.id
-          ) !==
-          String(
-            item.id
-          )
-      );
-
-    setDiary(
-      nextDiary
-    );
-
-    await persistEverything({
-      diary:
-        nextDiary,
-    });
-
-    if (
-      String(
-        editingDiaryId
-      ) ===
-      String(item.id)
-    ) {
-      setEditingDiaryId(
-        null
-      );
-    }
+// DIARY DAILY TARGET
+// ============================================================
+async function saveDiaryTarget(
+  day,
+  value
+) {
+  const numericValue =
+    Number(value) || 0;
+  const currentTargets =
+    settings?.diaryTargets &&
+    typeof settings.diaryTargets === "object" &&
+    !Array.isArray(
+      settings.diaryTargets
+    )
+      ? settings.diaryTargets
+      : {};
+  const nextTargets = {
+    ...currentTargets,
+    [String(day)]:
+      numericValue,
+  };
+  setDiaryTarget(
+    numericValue
+  );
+  const nextSettings = {
+    ...settings,
+    diaryTargets:
+      nextTargets,
+  };
+  setSettings(
+    nextSettings
+  );
+  await persistEverything({
+    settings:
+      nextSettings,
+  });
+}
+// ============================================================
+// FAVORITES PERSIST
+// ============================================================
+useEffect(() => {
+  if (!authChecked) {
+    return;
   }
-
-  // ============================================================
-  // DIARY DAILY TARGET
-  // ============================================================
-
-  async function saveDiaryTarget(
-    day,
-    value
-  ) {
-    const numericValue =
-      Number(value) || 0;
-
-    const nextTargets = {
-      ...diaryTarget,
-
-      [String(day)]:
-        numericValue,
-    };
-
-    setDiaryTarget(
-      nextTargets
-    );
-
-    await persistEverything({
-      settings: {
-        ...settings,
-
-        diaryTargets:
-          nextTargets,
-      },
-    });
-  }
-
-  // ============================================================
-  // FAVORITES PERSIST
-  // ============================================================
-
-  useEffect(() => {
-    if (!authChecked) {
-      return;
-    }
-
-    const timer =
-      setTimeout(
-        () => {
-          saveLocalPaCookData({
-            products,
-            recipes,
-            favorites,
-            diary,
-            deletedProducts,
-            deletedRecipes,
-            profile,
-            settings: {
-              ...settings,
-              diaryTargets:
-                diaryTarget,
-            },
-          }).catch(
-            (error) =>
-              console.log(
-                "Favorite/local persistence error:",
-                error
+  const timer =
+    setTimeout(
+      () => {
+        saveLocalPaCookData({
+          products:
+            ensureProductsArray(
+              products
+            ),
+          recipes:
+            Array.isArray(
+              recipes
+            )
+              ? recipes
+              : [],
+          favorites:
+            Array.isArray(
+              favorites
+            )
+              ? favorites
+              : [],
+          diary:
+            Array.isArray(
+              diary
+            )
+              ? diary
+              : [],
+          deletedProducts:
+            Array.isArray(
+              deletedProducts
+            )
+              ? deletedProducts
+              : [],
+          deletedRecipes:
+            Array.isArray(
+              deletedRecipes
+            )
+              ? deletedRecipes
+              : [],
+          profile,
+          settings: {
+            ...settings,
+            diaryTargets:
+              settings?.diaryTargets &&
+              typeof settings.diaryTargets ===
+                "object" &&
+              !Array.isArray(
+                settings.diaryTargets
               )
-          );
-        },
-        250
-      );
-
-    return () =>
-      clearTimeout(
-        timer
-      );
-  }, [
-    favorites,
-    diary,
-    diaryTarget,
-    authChecked,
-  ]);
+                ? settings.diaryTargets
+                : {},
+          },
+        }).catch(
+          (error) =>
+            console.log(
+              "Favorite/local persistence error:",
+              error
+            )
+        );
+      },
+      250
+    );
+  return () =>
+    clearTimeout(
+      timer
+    );
+}, [
+  favorites,
+  diary,
+  diaryTarget,
+  authChecked,
+  products,
+  recipes,
+  deletedProducts,
+  deletedRecipes,
+  profile,
+  settings,
+]);
 
   // ============================================================
   // AUTHOR ACCESS
@@ -8219,158 +8973,243 @@ export default function App() {
   }
 
   // ============================================================
-  // RESET LOCAL DATA
-  // ============================================================
-
-  async function resetLocalData() {
-    const confirmed =
-      await confirmDelete(
-        "Сбросить локальные данные PaCook? Авторские изменения, избранное и дневник на этом устройстве будут удалены."
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await AsyncStorage.removeItem(
-        "PACOOK_DATA"
-      );
-    } catch (error) {
-      console.log(
-        "Reset local data error:",
-        error
-      );
-    }
-
-    setProducts(
-      ALL_INITIAL_PRODUCTS
+// RESET LOCAL DATA
+// ============================================================
+async function resetLocalData() {
+  const confirmed =
+    await confirmDelete(
+      "Сбросить локальные данные PaCook? Авторские изменения, избранное и дневник на этом устройстве будут удалены."
     );
-
-    setRecipes(
-      INITIAL_RECIPES
-    );
-
-    setFavorites(
-      []
-    );
-
-    setDiary(
-      []
-    );
-
-    setDeletedProducts(
-      []
-    );
-
-    setDeletedRecipes(
-      []
-    );
-
-    setProfile(
-      {
-        name:
-          authUser?.user_metadata
-            ?.name ||
-          "PaCook User",
-
-        username:
-          "",
-
-        bio:
-          "",
-
-        avatar:
-          "",
-
-        photo:
-          "",
-
-        city:
-          "",
-      }
-    );
-
-    setDiaryTarget(
-      {}
-    );
-
-    setScreen("home");
+  if (!confirmed) {
+    return;
   }
+  try {
+    await AsyncStorage.removeItem(
+      STORAGE_KEYS.data
+    );
+  } catch (error) {
+    console.log(
+      "Reset local data error:",
+      error
+    );
+  }
+  setProducts([
+    ...ALL_INITIAL_PRODUCTS,
+  ]);
+  setRecipes([
+    ...INITIAL_RECIPES,
+  ]);
+  setFavorites(
+    []
+  );
+  setDiary(
+    []
+  );
+  setDeletedProducts(
+    []
+  );
+  setDeletedRecipes(
+    []
+  );
+  const resetProfile = {
+    name:
+      authUser?.user_metadata
+        ?.name ||
+      "PaCook User",
+    username: "",
+    bio: "",
+    avatar: "",
+    photo: "",
+    city: "",
+  };
+  setProfile(
+    resetProfile
+  );
+  setProfileForm(
+    resetProfile
+  );
+  const resetSettings = {
+    ...DEFAULT_SETTINGS,
+    diaryTargets: {},
+  };
+  setSettings(
+    resetSettings
+  );
+  setDiaryTarget(
+    "2000"
+  );
+  setEditingProductName(
+    null
+  );
+  setEditingRecipeId(
+    null
+  );
+  setEditingDiaryId(
+    null
+  );
+  setScreen(
+    "home"
+  );
+}
 
   // ============================================================
-  // ADD INGREDIENT TO RECIPE FORM
-  // ============================================================
-
-  function addRecipeIngredient() {
-    setRecipeForm(
-      (current) => ({
+// ADD INGREDIENT TO RECIPE FORM
+// ============================================================
+function addRecipeIngredient() {
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const firstProduct =
+    productsArray[0] ||
+    null;
+  setRecipeForm(
+    (current) => ({
+      ...current,
+      ingredients: [
+        ...(Array.isArray(
+          current.ingredients
+        )
+          ? current.ingredients
+          : []),
+        {
+          product:
+            firstProduct?.name ||
+            "",
+          productId:
+            firstProduct?.id ||
+            "",
+          product_id:
+            firstProduct?.id ||
+            "",
+          grams: 100,
+          amount: 100,
+        },
+      ],
+    })
+  );
+}
+// ============================================================
+// UPDATE RECIPE INGREDIENT
+// ============================================================
+function updateRecipeIngredient(
+  index,
+  field,
+  value
+) {
+  setRecipeForm(
+    (current) => {
+      const ingredients =
+        Array.isArray(
+          current.ingredients
+        )
+          ? [
+              ...current.ingredients,
+            ]
+          : [];
+      const old =
+        ingredients[index] ||
+        {
+          product: "",
+          productId: "",
+          product_id: "",
+          grams: 0,
+          amount: 0,
+        };
+      let nextValue =
+        value;
+      if (
+        field === "grams" ||
+        field === "amount"
+      ) {
+        nextValue =
+          Number(
+            value
+          ) || 0;
+      }
+      const updated = {
+        ...old,
+        [field]:
+          nextValue,
+      };
+      // Если меняется ID продукта,
+      // автоматически сохраняем и его название.
+      if (
+        field === "productId" ||
+        field === "product_id"
+      ) {
+        const productsArray =
+          ensureProductsArray(
+            products
+          );
+        const selectedProduct =
+          productsArray.find(
+            (product) =>
+              String(
+                product?.id
+              ) ===
+              String(
+                nextValue
+              )
+          );
+        if (selectedProduct) {
+          updated.product =
+            selectedProduct.name;
+          updated.productId =
+            selectedProduct.id;
+          updated.product_id =
+            selectedProduct.id;
+        }
+      }
+      // Если меняется название продукта,
+      // пытаемся найти соответствующий продукт.
+      if (
+        field === "product"
+      ) {
+        const productsArray =
+          ensureProductsArray(
+            products
+          );
+        const selectedProduct =
+          productsArray.find(
+            (product) =>
+              String(
+                product?.name
+              ) ===
+              String(
+                nextValue
+              )
+          );
+        if (selectedProduct) {
+          updated.product =
+            selectedProduct.name;
+          updated.productId =
+            selectedProduct.id;
+          updated.product_id =
+            selectedProduct.id;
+        }
+      }
+      if (
+        field === "grams"
+      ) {
+        updated.amount =
+          nextValue;
+      }
+      if (
+        field === "amount"
+      ) {
+        updated.grams =
+          nextValue;
+      }
+      ingredients[index] =
+        updated;
+      return {
         ...current,
-
-        ingredients: [
-          ...(Array.isArray(
-            current.ingredients
-          )
-            ? current.ingredients
-            : []),
-
-          {
-            productId:
-              products[0]?.id ||
-              "",
-
-            grams: 100,
-          },
-        ],
-      })
-    );
-  }
-
-  // ============================================================
-  // UPDATE RECIPE INGREDIENT
-  // ============================================================
-
-  function updateRecipeIngredient(
-    index,
-    field,
-    value
-  ) {
-    setRecipeForm(
-      (current) => {
-        const ingredients =
-          Array.isArray(
-            current.ingredients
-          )
-            ? [
-                ...current.ingredients,
-              ]
-            : [];
-
-        const old =
-          ingredients[index] ||
-          {
-            productId: "",
-            grams: 0,
-          };
-
-        ingredients[index] = {
-          ...old,
-
-          [field]:
-            field === "grams"
-              ? Number(
-                  value
-                ) || 0
-              : value,
-        };
-
-        return {
-          ...current,
-          ingredients,
-        };
-      }
-    );
-  }
+        ingredients,
+      };
+    }
+  );
+}
 
   // ============================================================
   // REMOVE RECIPE INGREDIENT
@@ -8477,103 +9316,112 @@ export default function App() {
   }
 
   // ============================================================
-  // RECIPE NUTRITION PREVIEW FOR AUTHOR
-  // ============================================================
-
-  const recipeFormNutrition =
-    useMemo(() => {
-      const draft = {
-        id:
-          "draft",
-
-        title:
-          recipeForm.title ||
-          "Новый рецепт",
-
-        ingredients:
-          Array.isArray(
-            recipeForm.ingredients
-          )
-            ? recipeForm.ingredients
-            : [],
-      };
-
-      return calculateRecipeNutrition(
-        draft
+// RECIPE NUTRITION PREVIEW FOR AUTHOR
+// ============================================================
+const recipeFormNutrition =
+  useMemo(() => {
+    const draft = {
+      id: "draft",
+      title:
+        recipeForm.title ||
+        "Новый рецепт",
+      ingredients:
+        Array.isArray(
+          recipeForm.ingredients
+        )
+          ? recipeForm.ingredients
+          : [],
+    };
+    const productsArray =
+      ensureProductsArray(
+        products
       );
-    }, [
-      recipeForm.ingredients,
-      recipeForm.title,
+    return calculateRecipeNutrition(
+      draft,
+      productsArray
+    );
+  }, [
+    recipeForm.ingredients,
+    recipeForm.title,
+    products,
+  ]);
+// ============================================================
+// CURRENT DAY DIARY DATA
+// ============================================================
+const currentDayDiary =
+  useMemo(
+    () =>
+      getDiaryForDay(
+        diaryDay
+      ),
+    [
+      diary,
+      diaryDay,
+    ]
+  );
+const currentDayCalories =
+  useMemo(
+    () =>
+      getDiaryCalories(
+        diaryDay
+      ),
+    [
+      diary,
+      diaryDay,
+      recipes,
       products,
-    ]);
-
-  // ============================================================
-  // CURRENT DAY DIARY DATA
-  // ============================================================
-
-  const currentDayDiary =
-    useMemo(
-      () =>
-        getDiaryForDay(
-          diaryDay
-        ),
-      [
-        diary,
-        diaryDay,
-      ]
-    );
-
-  const currentDayCalories =
-    useMemo(
-      () =>
-        getDiaryCalories(
-          diaryDay
-        ),
-      [
-        diary,
-        diaryDay,
-        recipes,
-      ]
-    );
-
-  const currentDayMacros =
-    useMemo(
-      () =>
-        getDiaryMacros(
-          diaryDay
-        ),
-      [
-        diary,
-        diaryDay,
-        recipes,
-      ]
-    );
-
-  // ============================================================
-  // AUTHOR COUNTERS
-  // ============================================================
-
-  const customProductsCount =
-    useMemo(
-      () =>
-        products.filter(
-          (item) =>
-            item.custom ||
-            item.author_id
-        ).length,
-      [products]
-    );
-
-  const customRecipesCount =
-    useMemo(
-      () =>
-        recipes.filter(
-          (item) =>
-            item.custom ||
-            item.author_id
-        ).length,
-      [recipes]
-    );
+    ]
+  );
+const currentDayMacros =
+  useMemo(
+    () =>
+      getDiaryMacros(
+        diaryDay
+      ),
+    [
+      diary,
+      diaryDay,
+      recipes,
+      products,
+    ]
+  );
+// ============================================================
+// AUTHOR COUNTERS
+// ============================================================
+const customProductsCount =
+  useMemo(() => {
+    const productsArray =
+      ensureProductsArray(
+        products
+      );
+    return productsArray.filter(
+      (item) =>
+        Boolean(
+          item?.custom ||
+          item?.author_id
+        )
+    ).length;
+  }, [
+    products,
+  ]);
+const customRecipesCount =
+  useMemo(() => {
+    const recipesArray =
+      Array.isArray(
+        recipes
+      )
+        ? recipes
+        : [];
+    return recipesArray.filter(
+      (item) =>
+        Boolean(
+          item?.custom ||
+          item?.author_id
+        )
+    ).length;
+  }, [
+    recipes,
+  ]);
 
   // ============================================================
   // APP READY
@@ -8625,543 +9473,332 @@ export default function App() {
     );
   }
   // ============================================================
-  // MAIN APP SCREENS
-  // ============================================================
-
-  function renderHomeScreen() {
-    const popularRecipes =
-      recipes.slice(0, 6);
-
-    const favoriteRecipes =
-      recipes.filter(
+// MAIN APP SCREENS
+// ============================================================
+function renderHomeScreen() {
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const favoritesArray =
+    Array.isArray(favorites)
+      ? favorites
+      : [];
+  const popularRecipes =
+    recipesArray.slice(0, 6);
+  const favoriteRecipes =
+    recipesArray
+      .filter(
         (recipe) =>
           isFavorite(
             recipe.id
           )
-      ).slice(0, 4);
-
-    const todayCalories =
-      getDiaryCalories(
-        diaryDay
-      );
-
-    const todayTarget =
-      Number(
-        diaryTarget?.[
-          String(diaryDay)
-        ]
-      ) || 0;
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
+      )
+      .slice(0, 4);
+  const todayCalories =
+    getDiaryCalories(
+      diaryDay
+    );
+  const todayTarget =
+    Number(
+      settings?.diaryTargets?.[
+        String(diaryDay)
+      ]
+    ) || 0;
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <AppHeader
+        title="PaCook"
+        subtitle="Cook smart. Eat better."
+        onProfilePress={
+          goProfile
         }
-        showsVerticalScrollIndicator={
-          false
+      />
+      <View
+        style={
+          styles.heroCard
         }
       >
-        <AppHeader
-          title="PaCook"
-          subtitle="Cook smart. Eat better."
-          onProfilePress={
-            goProfile
-          }
-        />
-
         <View
           style={
-            styles.heroCard
+            styles.heroTextWrap
           }
         >
-          <View
+          <Text
             style={
-              styles.heroTextWrap
+              styles.heroTitle
             }
           >
-            <Text
-              style={
-                styles.heroTitle
-              }
-            >
-              Готовь вкусно.
-            </Text>
-
-            <Text
-              style={
-                styles.heroTitle
-              }
-            >
-              Ешь лучше.
-            </Text>
-
-            <Text
-              style={
-                styles.heroSubtitle
-              }
-            >
-              Рецепты, продукты и
-              КБЖУ — всё в одном
-              месте.
-            </Text>
-
-            <PrimaryButton
-              title="Смотреть рецепты"
-              onPress={
-                goRecipes
-              }
-            />
-          </View>
-
-          <View
+            Готовь вкусно.
+          </Text>
+          <Text
             style={
-              styles.heroEmoji
+              styles.heroTitle
             }
           >
-            <Text
-              style={{
-                fontSize: 58,
-              }}
-            >
-              🍳
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={
-            styles.quickGrid
-          }
-        >
-          <Pressable
+            Ешь лучше.
+          </Text>
+          <Text
             style={
-              styles.quickCard
+              styles.heroSubtitle
             }
+          >
+            Рецепты, продукты и
+            КБЖУ — всё в одном
+            месте.
+          </Text>
+          <PrimaryButton
+            title="Смотреть рецепты"
             onPress={
               goRecipes
             }
+          />
+        </View>
+        <View
+          style={
+            styles.heroEmoji
+          }
+        >
+          <Text
+            style={{
+              fontSize: 58,
+            }}
           >
-            <Text
-              style={
-                styles.quickEmoji
-              }
-            >
-              🍽️
-            </Text>
-
-            <Text
-              style={
-                styles.quickTitle
-              }
-            >
-              Рецепты
-            </Text>
-
-            <Text
-              style={
-                styles.quickValue
-              }
-            >
-              {recipes.length}
-            </Text>
-          </Pressable>
-
-          <Pressable
+            🍳
+          </Text>
+        </View>
+      </View>
+      <View
+        style={
+          styles.quickGrid
+        }
+      >
+        <Pressable
+          style={
+            styles.quickCard
+          }
+          onPress={
+            goRecipes
+          }
+        >
+          <Text
             style={
-              styles.quickCard
-            }
-            onPress={
-              goProducts
+              styles.quickEmoji
             }
           >
-            <Text
-              style={
-                styles.quickEmoji
-              }
-            >
-              🥕
-            </Text>
-
-            <Text
-              style={
-                styles.quickTitle
-              }
-            >
-              Продукты
-            </Text>
-
-            <Text
-              style={
-                styles.quickValue
-              }
-            >
-              {products.length}
-            </Text>
-          </Pressable>
-
-          <Pressable
+            🍽️
+          </Text>
+          <Text
             style={
-              styles.quickCard
-            }
-            onPress={
-              goFavorites
+              styles.quickTitle
             }
           >
-            <Text
-              style={
-                styles.quickEmoji
-              }
-            >
-              ❤️
-            </Text>
-
-            <Text
-              style={
-                styles.quickTitle
-              }
-            >
-              Избранное
-            </Text>
-
-            <Text
-              style={
-                styles.quickValue
-              }
-            >
-              {favorites.length}
-            </Text>
-          </Pressable>
-
-          <Pressable
+            Рецепты
+          </Text>
+          <Text
             style={
-              styles.quickCard
+              styles.quickValue
             }
-            onPress={
-              goDiary
+          >
+            {recipesArray.length}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={
+            styles.quickCard
+          }
+          onPress={
+            goProducts
+          }
+        >
+          <Text
+            style={
+              styles.quickEmoji
+            }
+          >
+            🥕
+          </Text>
+          <Text
+            style={
+              styles.quickTitle
+            }
+          >
+            Продукты
+          </Text>
+          <Text
+            style={
+              styles.quickValue
+            }
+          >
+            {productsArray.length}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={
+            styles.quickCard
+          }
+          onPress={
+            goFavorites
+          }
+        >
+          <Text
+            style={
+              styles.quickEmoji
+            }
+          >
+            ❤️
+          </Text>
+          <Text
+            style={
+              styles.quickTitle
+            }
+          >
+            Избранное
+          </Text>
+          <Text
+            style={
+              styles.quickValue
+            }
+          >
+            {favoritesArray.length}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={
+            styles.quickCard
+          }
+          onPress={
+            goDiary
+          }
+        >
+          <Text
+            style={
+              styles.quickEmoji
+            }
+          >
+            📅
+          </Text>
+          <Text
+            style={
+              styles.quickTitle
+            }
+          >
+            Дневник
+          </Text>
+          <Text
+            style={
+              styles.quickValue
+            }
+          >
+            {Math.round(
+              todayCalories
+            )}{" "}
+            ккал
+          </Text>
+        </Pressable>
+      </View>
+      {todayTarget > 0 && (
+        <View
+          style={
+            styles.dailySummaryCard
+          }
+        >
+          <View
+            style={
+              styles.rowBetween
             }
           >
             <Text
               style={
-                styles.quickEmoji
+                styles.cardTitle
               }
             >
-              📅
+              Сегодня
             </Text>
-
             <Text
               style={
-                styles.quickTitle
-              }
-            >
-              Дневник
-            </Text>
-
-            <Text
-              style={
-                styles.quickValue
+                styles.mutedText
               }
             >
               {Math.round(
                 todayCalories
               )}{" "}
-              ккал
-            </Text>
-          </Pressable>
-        </View>
-
-        {todayTarget > 0 && (
-          <View
-            style={
-              styles.dailySummaryCard
-            }
-          >
-            <View
-              style={
-                styles.rowBetween
-              }
-            >
-              <Text
-                style={
-                  styles.cardTitle
-                }
-              >
-                Сегодня
-              </Text>
-
-              <Text
-                style={
-                  styles.mutedText
-                }
-              >
-                {Math.round(
-                  todayCalories
-                )} /{" "}
-                {Math.round(
-                  todayTarget
-                )} ккал
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.progressTrack
-              }
-            >
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        (todayCalories /
-                          todayTarget) *
-                          100
-                      )
-                    )}%`,
-                  },
-                ]}
-              />
-            </View>
-
-            <Text
-              style={
-                styles.smallMuted
-              }
-            >
-              Осталось примерно{" "}
-              {Math.max(
-                0,
-                Math.round(
-                  todayTarget -
-                    todayCalories
-                )
-              )}{" "}
-              ккал
+              /{" "}
+              {Math.round(
+                todayTarget
+              )} ккал
             </Text>
           </View>
-        )}
-
-        <SectionTitle
-          title="Популярные рецепты"
-          action="Все"
-          onAction={
-            goRecipes
-          }
-        />
-
-        {popularRecipes.length >
-        0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={
-              false
+          <View
+            style={
+              styles.progressTrack
             }
-            contentContainerStyle={{
-              paddingRight: 20,
-            }}
           >
-            {popularRecipes.map(
-              (recipe) => (
-                <RecipeCard
-                  key={
-                    recipe.id
-                  }
-                  recipe={
-                    recipe
-                  }
-                  nutrition={
-                    calculateRecipeNutrition(
-                      recipe
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      (todayCalories /
+                        todayTarget) *
+                        100
                     )
-                  }
-                  favorite={isFavorite(
-                    recipe.id
-                  )}
-                  onPress={() =>
-                    openRecipe(
-                      recipe.id
-                    )
-                  }
-                  onFavorite={() =>
-                    toggleFavorite(
-                      recipe.id
-                    )
-                  }
-                  compact
-                />
-              )
-            )}
-          </ScrollView>
-        ) : (
-          <EmptyState
-            title="Пока нет рецептов"
-            text="Добавь первый рецепт в авторском режиме."
-          />
-        )}
-
-        <SectionTitle
-          title="Твои избранные"
-          action={
-            favoriteRecipes.length
-              ? "Все"
-              : null
-          }
-          onAction={
-            goFavorites
-          }
-        />
-
-        {favoriteRecipes.length >
-        0 ? (
-          favoriteRecipes.map(
-            (recipe) => (
-              <RecipeCard
-                key={
-                  recipe.id
-                }
-                recipe={
-                  recipe
-                }
-                nutrition={
-                  calculateRecipeNutrition(
-                    recipe
-                  )
-                }
-                favorite
-                onPress={() =>
-                  openRecipe(
-                    recipe.id
-                  )
-                }
-                onFavorite={() =>
-                  toggleFavorite(
-                    recipe.id
-                  )
-                }
-              />
-            )
-          )
-        ) : (
-          <EmptyState
-            title="Избранное пусто"
-            text="Нажми ❤️ на любом рецепте, чтобы сохранить его."
-            button="Найти рецепт"
-            onPress={
-              goRecipes
+                  )}%`,
+                },
+              ]}
+            />
+          </View>
+          <Text
+            style={
+              styles.smallMuted
             }
-          />
-        )}
-
-        <View
-          style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // RECIPES SCREEN
-  // ============================================================
-
-  function renderRecipesScreen() {
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
+          >
+            Осталось примерно{" "}
+            {Math.max(
+              0,
+              Math.round(
+                todayTarget -
+                  todayCalories
+              )
+            )}{" "}
+            ккал
+          </Text>
+        </View>
+      )}
+      <SectionTitle
+        title="Популярные рецепты"
+        action="Все"
+        onAction={
+          goRecipes
         }
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        <AppHeader
-          title="Рецепты"
-          subtitle={`${recipes.length} рецептов`}
-          onProfilePress={
-            goProfile
-          }
-        />
-
-        <SearchBar
-          value={search}
-          onChangeText={
-            setSearch
-          }
-          placeholder="Поиск рецепта..."
-        />
-
+      />
+      {popularRecipes.length >
+      0 ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={
             false
           }
-          contentContainerStyle={
-            styles.categoryScroll
-          }
+          contentContainerStyle={{
+            paddingRight: 20,
+          }}
         >
-          {[
-            "Все",
-            ...categories,
-          ].map(
-            (category) => {
-              const active =
-                recipeCategory ===
-                category;
-
-              return (
-                <Pressable
-                  key={
-                    category
-                  }
-                  onPress={() =>
-                    setRecipeCategory(
-                      category
-                    )
-                  }
-                  style={[
-                    styles.categoryPill,
-                    active &&
-                      styles.categoryPillActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.categoryPillText,
-                      active &&
-                        styles.categoryPillTextActive,
-                    ]}
-                  >
-                    {category}
-                  </Text>
-                </Pressable>
-              );
-            }
-          )}
-        </ScrollView>
-
-        <View
-          style={
-            styles.resultCountRow
-          }
-        >
-          <Text
-            style={
-              styles.resultCount
-            }
-          >
-            {filteredRecipes.length}{" "}
-            рецептов
-          </Text>
-        </View>
-
-        {filteredRecipes.length >
-        0 ? (
-          filteredRecipes.map(
+          {popularRecipes.map(
             (recipe) => (
               <RecipeCard
                 key={
@@ -9172,7 +9809,8 @@ export default function App() {
                 }
                 nutrition={
                   calculateRecipeNutrition(
-                    recipe
+                    recipe,
+                    productsArray
                   )
                 }
                 favorite={isFavorite(
@@ -9188,1907 +9826,1653 @@ export default function App() {
                     recipe.id
                   )
                 }
+                compact
               />
             )
-          )
-        ) : (
-          <EmptyState
-            title="Ничего не найдено"
-            text="Попробуй изменить поисковый запрос или категорию."
-            button="Сбросить"
-            onPress={() => {
-              setSearch("");
-              setRecipeCategory(
-                "Все"
-              );
-            }}
-          />
-        )}
-
-        <View
-          style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // RECIPE DETAIL SCREEN
-  // ============================================================
-
-  function renderRecipeScreen() {
-    const recipe =
-      selectedRecipe;
-
-    if (!recipe) {
-      return (
-        <View
-          style={
-            styles.centerScreen
-          }
-        >
-          <Text
-            style={
-              styles.emptyTitle
-            }
-          >
-            Рецепт не найден
-          </Text>
-
-          <PrimaryButton
-            title="Назад"
-            onPress={
-              goRecipes
-            }
-          />
-        </View>
-      );
-    }
-
-    const nutrition =
-      calculateRecipeNutrition(
-        recipe
-      );
-
-    const ingredients =
-      Array.isArray(
-        recipe.ingredients
-      )
-        ? recipe.ingredients
-        : [];
-
-    const steps =
-      Array.isArray(
-        recipe.steps
-      )
-        ? recipe.steps
-        : [];
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        <View
-          style={
-            styles.detailTopBar
-          }
-        >
-          <Pressable
-            onPress={
-              closeRecipe
-            }
-            style={
-              styles.backButton
-            }
-          >
-            <Text
-              style={
-                styles.backButtonText
-              }
-            >
-              ‹
-            </Text>
-          </Pressable>
-
-          <Text
-            style={
-              styles.detailTopTitle
-            }
-          >
-            Рецепт
-          </Text>
-
-          <Pressable
-            onPress={() =>
-              toggleFavorite(
-                recipe.id
-              )
-            }
-            style={
-              styles.favoriteTopButton
-            }
-          >
-            <Text
-              style={{
-                fontSize: 22,
-              }}
-            >
-              {isFavorite(
-                recipe.id
-              )
-                ? "❤️"
-                : "♡"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <ImageWithFallback
-          uri={
-            recipe.image ||
-            recipe.image_url
-          }
-          style={
-            styles.recipeHeroImage
-          }
-          fallback="🍽️"
-        />
-
-        <View
-          style={
-            styles.recipeDetailCard
-          }
-        >
-          <View
-            style={
-              styles.rowBetween
-            }
-          >
-            <Pill
-              text={
-                recipe.category ||
-                "Другое"
-              }
-            />
-
-            {recipe.pro && (
-              <Pill
-                text="PRO"
-                green
-              />
-            )}
-          </View>
-
-          <Text
-            style={
-              styles.detailRecipeTitle
-            }
-          >
-            {recipe.title ||
-              recipe.name}
-          </Text>
-
-          {!!recipe.description && (
-            <Text
-              style={
-                styles.detailDescription
-              }
-            >
-              {
-                recipe.description
-              }
-            </Text>
-          )}
-
-          <View
-            style={
-              styles.nutritionGrid
-            }
-          >
-            <StatCard
-              label="Ккал"
-              value={`${Math.round(
-                nutrition.kcal
-              )}`}
-            />
-
-            <StatCard
-              label="Белки"
-              value={`${Math.round(
-                nutrition.protein
-              )} г`}
-            />
-
-            <StatCard
-              label="Жиры"
-              value={`${Math.round(
-                nutrition.fat
-              )} г`}
-            />
-
-            <StatCard
-              label="Углеводы"
-              value={`${Math.round(
-                nutrition.carbs
-              )} г`}
-            />
-          </View>
-
-          <View
-            style={
-              styles.recipeMetaRow
-            }
-          >
-            {recipe.servings ? (
-              <Text
-                style={
-                  styles.recipeMeta
-                }
-              >
-                👥{" "}
-                {recipe.servings}{" "}
-                порц.
-              </Text>
-            ) : null}
-
-            {recipe.prepTime ? (
-              <Text
-                style={
-                  styles.recipeMeta
-                }
-              >
-                ⏱️{" "}
-                {recipe.prepTime} мин
-              </Text>
-            ) : null}
-
-            {recipe.cookTime ? (
-              <Text
-                style={
-                  styles.recipeMeta
-                }
-              >
-                🔥{" "}
-                {recipe.cookTime} мин
-              </Text>
-            ) : null}
-          </View>
-        </View>
-
-        <SectionTitle
-          title="Ингредиенты"
-        />
-
-        <View
-          style={
-            styles.ingredientsCard
-          }
-        >
-          {ingredients.length >
-          0 ? (
-            ingredients.map(
-              (
-                ingredient,
-                index
-              ) => {
-                const product =
-                  products.find(
-                    (item) =>
-                      String(
-                        item.id
-                      ) ===
-                      String(
-                        ingredient.productId ||
-                          ingredient.product_id
-                      )
-                  );
-
-                const grams =
-                  Number(
-                    ingredient.grams ??
-                      ingredient.amount ??
-                      ingredient.weight ??
-                      0
-                  );
-
-                return (
-                  <View
-                    key={`${recipe.id}-ingredient-${index}`}
-                    style={
-                      styles.ingredientRow
-                    }
-                  >
-                    <View
-                      style={
-                        styles.ingredientBullet
-                      }
-                    />
-
-                    <Text
-                      style={
-                        styles.ingredientName
-                      }
-                    >
-                      {product?.name ||
-                        ingredient.name ||
-                        "Продукт"}
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.ingredientAmount
-                      }
-                    >
-                      {grams} г
-                    </Text>
-                  </View>
-                );
-              }
-            )
-          ) : (
-            <Text
-              style={
-                styles.mutedText
-              }
-            >
-              Ингредиенты пока не
-              указаны.
-            </Text>
-          )}
-        </View>
-
-        <SectionTitle
-          title="Приготовление"
-        />
-
-        <View
-          style={
-            styles.stepsCard
-          }
-        >
-          {steps.length >
-          0 ? (
-            steps.map(
-              (
-                step,
-                index
-              ) => (
-                <View
-                  key={`${recipe.id}-step-${index}`}
-                  style={
-                    styles.stepRow
-                  }
-                >
-                  <View
-                    style={
-                      styles.stepNumber
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.stepNumberText
-                      }
-                    >
-                      {index +
-                        1}
-                    </Text>
-                  </View>
-
-                  <Text
-                    style={
-                      styles.stepText
-                    }
-                  >
-                    {step}
-                  </Text>
-                </View>
-              )
-            )
-          ) : (
-            <Text
-              style={
-                styles.mutedText
-              }
-            >
-              Шаги приготовления
-              пока не указаны.
-            </Text>
-          )}
-        </View>
-
-        <View
-          style={
-            styles.recipeNutritionNote
-          }
-        >
-          <Text
-            style={
-              styles.recipeNutritionNoteTitle
-            }
-          >
-            📊 Расчёт КБЖУ
-          </Text>
-
-          <Text
-            style={
-              styles.recipeNutritionNoteText
-            }
-          >
-            Значения рассчитаны
-            по количеству
-            ингредиентов в рецепте.
-            Если продукты указаны
-            в сыром виде, расчёт
-            производится по сырому
-            весу.
-          </Text>
-        </View>
-
-        <PrimaryButton
-          title="Добавить в дневник"
-          onPress={() => {
-            setDiaryRecipeId(
-              recipe.id
-            );
-            setDiaryDay(1);
-            setScreen(
-              "diary"
-            );
-          }}
-        />
-
-        <View
-          style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // PRODUCTS SCREEN
-  // ============================================================
-
-  function renderProductsScreen() {
-    const grouped =
-      filteredProducts.reduce(
-        (
-          result,
-          product
-        ) => {
-          const category =
-            product.category ||
-            "Другое";
-
-          if (!result[category]) {
-            result[category] = [];
-          }
-
-          result[category].push(
-            product
-          );
-
-          return result;
-        },
-        {}
-      );
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        <AppHeader
-          title="Продукты"
-          subtitle={`${products.length} продуктов`}
-          onProfilePress={
-            goProfile
-          }
-        />
-
-        <SearchBar
-          value={
-            productsSearch
-          }
-          onChangeText={
-            setProductsSearch
-          }
-          placeholder="Найти продукт..."
-        />
-
-        <View
-          style={
-            styles.productInfoCard
-          }
-        >
-          <Text
-            style={
-              styles.productInfoTitle
-            }
-          >
-            КБЖУ на 100 г
-          </Text>
-
-          <Text
-            style={
-              styles.productInfoText
-            }
-          >
-            Выбирай продукты с
-            понятной пищевой
-            ценностью и используй
-            их в своих рецептах.
-          </Text>
-        </View>
-
-        {Object.keys(
-          grouped
-        ).map(
-          (category) => (
-            <View
-              key={
-                category
-              }
-            >
-              <SectionTitle
-                title={
-                  category
-                }
-              />
-
-              {grouped[
-                category
-              ].map(
-                (product) => (
-                  <View
-                    key={
-                      product.id
-                    }
-                    style={
-                      styles.productCard
-                    }
-                  >
-                    <View
-                      style={
-                        styles.productIcon
-                      }
-                    >
-                      <Text
-                        style={{
-                          fontSize: 25,
-                        }}
-                      >
-                        {getProductEmoji(
-                          product
-                        )}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={
-                        styles.productMain
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.productName
-                        }
-                      >
-                        {
-                          product.name
-                        }
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.productKcal
-                        }
-                      >
-                        {Math.round(
-                          Number(
-                            product.kcal
-                          ) || 0
-                        )}{" "}
-                        ккал / 100 г
-                      </Text>
-
-                      <View
-                        style={
-                          styles.productMacros
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.productMacroText
-                          }
-                        >
-                          Б{" "}
-                          {Number(
-                            product.protein
-                          ) || 0}
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.productMacroText
-                          }
-                        >
-                          Ж{" "}
-                          {Number(
-                            product.fat
-                          ) || 0}
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.productMacroText
-                          }
-                        >
-                          У{" "}
-                          {Number(
-                            product.carbs
-                          ) || 0}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )
-              )}
-            </View>
-          )
-        )}
-
-        {filteredProducts.length ===
-          0 && (
-          <EmptyState
-            title="Продукт не найден"
-            text="Попробуй другое название."
-            button="Очистить поиск"
-            onPress={() =>
-              setProductsSearch(
-                ""
-              )
-            }
-          />
-        )}
-
-        <View
-          style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // FAVORITES SCREEN
-  // ============================================================
-
-  function renderFavoritesScreen() {
-    const favoriteRecipes =
-      recipes.filter(
-        (recipe) =>
-          isFavorite(
-            recipe.id
-          )
-      );
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        <AppHeader
-          title="Избранное"
-          subtitle={
-            favoriteRecipes.length
-              ? `${favoriteRecipes.length} сохранено`
-              : "Сохрани понравившиеся рецепты"
-          }
-          onProfilePress={
-            goProfile
-          }
-        />
-
-        {favoriteRecipes.length >
-        0 ? (
-          favoriteRecipes.map(
-            (recipe) => (
-              <RecipeCard
-                key={
-                  recipe.id
-                }
-                recipe={
-                  recipe
-                }
-                nutrition={
-                  calculateRecipeNutrition(
-                    recipe
-                  )
-                }
-                favorite
-                onPress={() =>
-                  openRecipe(
-                    recipe.id
-                  )
-                }
-                onFavorite={() =>
-                  toggleFavorite(
-                    recipe.id
-                  )
-                }
-              />
-            )
-          )
-        ) : (
-          <EmptyState
-            title="Здесь пока пусто"
-            text="Нажимай на сердечко ❤️, чтобы сохранять рецепты."
-            button="Открыть рецепты"
-            onPress={
-              goRecipes
-            }
-          />
-        )}
-
-        <View
-          style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // DIARY SCREEN
-  // ============================================================
-
-  function renderDiaryScreen() {
-    const days = [
-      {
-        id: 1,
-        label: "Пн",
-      },
-      {
-        id: 2,
-        label: "Вт",
-      },
-      {
-        id: 3,
-        label: "Ср",
-      },
-      {
-        id: 4,
-        label: "Чт",
-      },
-      {
-        id: 5,
-        label: "Пт",
-      },
-      {
-        id: 6,
-        label: "Сб",
-      },
-      {
-        id: 7,
-        label: "Вс",
-      },
-    ];
-
-    const target =
-      Number(
-        diaryTarget?.[
-          String(diaryDay)
-        ]
-      ) || 0;
-
-    const mealLabels = [
-      "Завтрак",
-      "Обед",
-      "Ужин",
-      "Перекус",
-    ];
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        <AppHeader
-          title="Дневник"
-          subtitle="Твой план питания"
-          onProfilePress={
-            goProfile
-          }
-        />
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={
-            false
-          }
-          contentContainerStyle={{
-            paddingRight: 20,
-          }}
-        >
-          {days.map(
-            (day) => {
-              const active =
-                Number(
-                  diaryDay
-                ) ===
-                Number(
-                  day.id
-                );
-
-              return (
-                <Pressable
-                  key={
-                    day.id
-                  }
-                  onPress={() =>
-                    setDiaryDay(
-                      day.id
-                    )
-                  }
-                  style={[
-                    styles.dayPill,
-                    active &&
-                      styles.dayPillActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.dayPillText,
-                      active &&
-                        styles.dayPillTextActive,
-                    ]}
-                  >
-                    {
-                      day.label
-                    }
-                  </Text>
-                </Pressable>
-              );
-            }
           )}
         </ScrollView>
+      ) : (
+        <EmptyState
+          title="Пока нет рецептов"
+          text="Добавь первый рецепт в авторском режиме."
+        />
+      )}
+      <SectionTitle
+        title="Твои избранные"
+        action={
+          favoriteRecipes.length
+            ? "Все"
+            : null
+        }
+        onAction={
+          goFavorites
+        }
+      />
+      {favoriteRecipes.length >
+      0 ? (
+        favoriteRecipes.map(
+          (recipe) => (
+            <RecipeCard
+              key={
+                recipe.id
+              }
+              recipe={
+                recipe
+              }
+              nutrition={
+                calculateRecipeNutrition(
+                  recipe,
+                  productsArray
+                )
+              }
+              favorite
+              onPress={() =>
+                openRecipe(
+                  recipe.id
+                )
+              }
+              onFavorite={() =>
+                toggleFavorite(
+                  recipe.id
+                )
+              }
+            />
+          )
+        )
+      ) : (
+        <EmptyState
+          title="Избранное пусто"
+          text="Нажми ❤️ на любом рецепте, чтобы сохранить его."
+          button="Найти рецепт"
+          onPress={
+            goRecipes
+          }
+        />
+      )}
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
 
-        <View
+  // ============================================================
+// RECIPES SCREEN
+// ============================================================
+function renderRecipesScreen() {
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const filteredRecipesArray =
+    Array.isArray(filteredRecipes)
+      ? filteredRecipes
+      : [];
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <AppHeader
+        title="Рецепты"
+        subtitle={`${recipesArray.length} рецептов`}
+        onProfilePress={
+          goProfile
+        }
+      />
+      <SearchBar
+        value={search}
+        onChangeText={
+          setSearch
+        }
+        placeholder="Поиск рецепта..."
+      />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={
+          false
+        }
+        contentContainerStyle={
+          styles.categoryScroll
+        }
+      >
+        {[
+          "Все",
+          ...categories,
+        ].map(
+          (category) => {
+            const active =
+              recipeCategory ===
+              category;
+            return (
+              <Pressable
+                key={
+                  category
+                }
+                onPress={() =>
+                  setRecipeCategory(
+                    category
+                  )
+                }
+                style={[
+                  styles.categoryPill,
+                  active &&
+                    styles.categoryPillActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.categoryPillText,
+                    active &&
+                      styles.categoryPillTextActive,
+                  ]}
+                >
+                  {category}
+                </Text>
+              </Pressable>
+            );
+          }
+        )}
+      </ScrollView>
+      <View
+        style={
+          styles.resultCountRow
+        }
+      >
+        <Text
           style={
-            styles.diarySummaryCard
+            styles.resultCount
+          }
+        >
+          {filteredRecipesArray.length}{" "}
+          рецептов
+        </Text>
+      </View>
+      {filteredRecipesArray.length >
+      0 ? (
+        filteredRecipesArray.map(
+          (recipe) => (
+            <RecipeCard
+              key={
+                recipe.id
+              }
+              recipe={
+                recipe
+              }
+              nutrition={
+                calculateRecipeNutrition(
+                  recipe,
+                  productsArray
+                )
+              }
+              favorite={isFavorite(
+                recipe.id
+              )}
+              onPress={() =>
+                openRecipe(
+                  recipe.id
+                )
+              }
+              onFavorite={() =>
+                toggleFavorite(
+                  recipe.id
+                )
+              }
+            />
+          )
+        )
+      ) : (
+        <EmptyState
+          title="Ничего не найдено"
+          text="Попробуй изменить поисковый запрос или категорию."
+          button="Сбросить"
+          onPress={() => {
+            setSearch("");
+            setRecipeCategory(
+              "Все"
+            );
+          }}
+        />
+      )}
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+
+  // ============================================================
+// RECIPE DETAIL SCREEN
+// ============================================================
+function renderRecipeScreen() {
+  const recipe =
+    selectedRecipe;
+  if (!recipe) {
+    return (
+      <View
+        style={
+          styles.centerScreen
+        }
+      >
+        <Text
+          style={
+            styles.emptyTitle
+          }
+        >
+          Рецепт не найден
+        </Text>
+        <PrimaryButton
+          title="Назад"
+          onPress={
+            goRecipes
+          }
+        />
+      </View>
+    );
+  }
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const nutrition =
+    calculateRecipeNutrition(
+      recipe,
+      productsArray
+    );
+  const ingredients =
+    Array.isArray(
+      recipe.ingredients
+    )
+      ? recipe.ingredients
+      : [];
+  const steps =
+    Array.isArray(
+      recipe.steps
+    )
+      ? recipe.steps
+      : [];
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <View
+        style={
+          styles.detailTopBar
+        }
+      >
+        <Pressable
+          onPress={
+            closeRecipe
+          }
+          style={
+            styles.backButton
           }
         >
           <Text
             style={
-              styles.diarySummaryTitle
+              styles.backButtonText
             }
           >
-            Цель на день
+            ‹
           </Text>
-
-          <View
+        </Pressable>
+        <Text
+          style={
+            styles.detailTopTitle
+          }
+        >
+          Рецепт
+        </Text>
+        <Pressable
+          onPress={() =>
+            toggleFavorite(
+              recipe.id
+            )
+          }
+          style={
+            styles.favoriteTopButton
+          }
+        >
+          <Text
+            style={{
+              fontSize: 22,
+            }}
+          >
+            {isFavorite(
+              recipe.id
+            )
+              ? "❤️"
+              : "♡"}
+          </Text>
+        </Pressable>
+      </View>
+      <ImageWithFallback
+        uri={
+          recipe.image ||
+          recipe.image_url
+        }
+        style={
+          styles.recipeHeroImage
+        }
+        fallback="🍽️"
+      />
+      <View
+        style={
+          styles.recipeDetailCard
+        }
+      >
+        <View
+          style={
+            styles.rowBetween
+          }
+        >
+          <Pill
+            text={
+              recipe.category ||
+              "Другое"
+            }
+          />
+          {recipe.pro && (
+            <Pill
+              text="PRO"
+              green
+            />
+          )}
+        </View>
+        <Text
+          style={
+            styles.detailRecipeTitle
+          }
+        >
+          {recipe.title ||
+            recipe.name}
+        </Text>
+        {!!recipe.description && (
+          <Text
             style={
-              styles.diaryCaloriesRow
+              styles.detailDescription
             }
           >
-            <Text
-              style={
-                styles.diaryCalories
-              }
-            >
-              {Math.round(
-                currentDayCalories
-              )}
-            </Text>
-
-            <Text
-              style={
-                styles.diaryCaloriesUnit
-              }
-            >
-              / {target || "—"} ккал
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.progressTrack
+            {
+              recipe.description
             }
-          >
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width:
-                    target > 0
-                      ? `${Math.min(
-                          100,
-                          Math.max(
-                            0,
-                            (currentDayCalories /
-                              target) *
-                              100
-                          )
-                        )}%`
-                      : "0%",
-                },
-              ]}
-            />
-          </View>
-
-          <View
-            style={
-              styles.diaryMacroGrid
-            }
-          >
-            <MacroRow
-              label="Белки"
-              value={`${Math.round(
-                currentDayMacros.protein
-              )} г`}
-            />
-
-            <MacroRow
-              label="Жиры"
-              value={`${Math.round(
-                currentDayMacros.fat
-              )} г`}
-            />
-
-            <MacroRow
-              label="Углеводы"
-              value={`${Math.round(
-                currentDayMacros.carbs
-              )} г`}
-            />
-          </View>
-
-          <FormInput
-            label="Калорийная цель"
-            value={
-              target
-                ? String(target)
-                : ""
-            }
-            onChangeText={(
-              value
-            ) =>
-              saveDiaryTarget(
-                diaryDay,
-                value
-              )
-            }
-            keyboardType="numeric"
-            placeholder="Например, 2200"
+          </Text>
+        )}
+        <View
+          style={
+            styles.nutritionGrid
+          }
+        >
+          <StatCard
+            label="Ккал"
+            value={`${Math.round(
+              nutrition.kcal
+            )}`}
+          />
+          <StatCard
+            label="Белки"
+            value={`${Math.round(
+              nutrition.protein
+            )} г`}
+          />
+          <StatCard
+            label="Жиры"
+            value={`${Math.round(
+              nutrition.fat
+            )} г`}
+          />
+          <StatCard
+            label="Углеводы"
+            value={`${Math.round(
+              nutrition.carbs
+            )} г`}
           />
         </View>
-
-        <SectionTitle
-          title={`Питание — ${
-            days.find(
-              (day) =>
-                day.id ===
-                Number(
-                  diaryDay
-                )
-            )?.label ||
-            ""
-          }`}
-        />
-
-        {currentDayDiary.length >
+        <View
+          style={
+            styles.recipeMetaRow
+          }
+        >
+          {recipe.servings ? (
+            <Text
+              style={
+                styles.recipeMeta
+              }
+            >
+              👥{" "}
+              {recipe.servings}{" "}
+              порц.
+            </Text>
+          ) : null}
+          {recipe.prepTime ? (
+            <Text
+              style={
+                styles.recipeMeta
+              }
+            >
+              ⏱️{" "}
+              {recipe.prepTime} мин
+            </Text>
+          ) : null}
+          {recipe.cookTime ? (
+            <Text
+              style={
+                styles.recipeMeta
+              }
+            >
+              🔥{" "}
+              {recipe.cookTime} мин
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      <SectionTitle
+        title="Ингредиенты"
+      />
+      <View
+        style={
+          styles.ingredientsCard
+        }
+      >
+        {ingredients.length >
         0 ? (
-          currentDayDiary.map(
-            (item) => {
-              const recipe =
-                recipes.find(
-                  (recipeItem) =>
+          ingredients.map(
+            (
+              ingredient,
+              index
+            ) => {
+              const product =
+                productsArray.find(
+                  (item) =>
                     String(
-                      recipeItem.id
+                      item?.id
                     ) ===
                     String(
-                      item.recipeId
+                      ingredient?.productId ||
+                        ingredient?.product_id
                     )
                 );
-
-              const nutrition =
-                recipe
-                  ? calculateRecipeNutrition(
-                      recipe
-                    )
-                  : null;
-
+              const grams =
+                Number(
+                  ingredient?.grams ??
+                    ingredient?.amount ??
+                    ingredient?.weight ??
+                    0
+                );
               return (
                 <View
-                  key={
-                    item.id
-                  }
+                  key={`${recipe.id}-ingredient-${index}`}
                   style={
-                    styles.diaryMealCard
+                    styles.ingredientRow
                   }
                 >
                   <View
                     style={
-                      styles.diaryMealIcon
+                      styles.ingredientBullet
+                    }
+                  />
+                  <Text
+                    style={
+                      styles.ingredientName
+                    }
+                  >
+                    {product?.name ||
+                      ingredient?.product ||
+                      ingredient?.name ||
+                      "Продукт"}
+                  </Text>
+                  <Text
+                    style={
+                      styles.ingredientAmount
+                    }
+                  >
+                    {grams} г
+                  </Text>
+                </View>
+              );
+            }
+          )
+        ) : (
+          <Text
+            style={
+              styles.mutedText
+            }
+          >
+            Ингредиенты пока не
+            указаны.
+          </Text>
+        )}
+      </View>
+      <SectionTitle
+        title="Приготовление"
+      />
+      <View
+        style={
+          styles.stepsCard
+        }
+      >
+        {steps.length >
+        0 ? (
+          steps.map(
+            (
+              step,
+              index
+            ) => (
+              <View
+                key={`${recipe.id}-step-${index}`}
+                style={
+                  styles.stepRow
+                }
+              >
+                <View
+                  style={
+                    styles.stepNumber
+                  }
+                >
+                  <Text
+                    style={
+                      styles.stepNumberText
+                    }
+                  >
+                    {index +
+                      1}
+                  </Text>
+                </View>
+                <Text
+                  style={
+                    styles.stepText
+                  }
+                >
+                  {step}
+                </Text>
+              </View>
+            )
+          )
+        ) : (
+          <Text
+            style={
+              styles.mutedText
+            }
+          >
+            Шаги приготовления
+            пока не указаны.
+          </Text>
+        )}
+      </View>
+      <View
+        style={
+          styles.recipeNutritionNote
+        }
+      >
+        <Text
+          style={
+            styles.recipeNutritionNoteTitle
+          }
+        >
+          📊 Расчёт КБЖУ
+        </Text>
+        <Text
+          style={
+            styles.recipeNutritionNoteText
+          }
+        >
+          Значения рассчитаны
+          по количеству
+          ингредиентов в рецепте.
+          Если продукты указаны
+          в сыром виде, расчёт
+          производится по сырому
+          весу.
+        </Text>
+      </View>
+      <PrimaryButton
+        title="Добавить в дневник"
+        onPress={() => {
+          setDiaryRecipeId(
+            recipe.id
+          );
+          setDiaryDay(1);
+          setScreen(
+            "diary"
+          );
+        }}
+      />
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+
+  // ============================================================
+// PRODUCTS SCREEN
+// ============================================================
+function renderProductsScreen() {
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const filteredProductsArray =
+    Array.isArray(
+      filteredProducts
+    )
+      ? filteredProducts
+      : [];
+  const grouped =
+    filteredProductsArray.reduce(
+      (
+        result,
+        product
+      ) => {
+        if (!product) {
+          return result;
+        }
+        const category =
+          cleanString(
+            product.category
+          ) || "Другое";
+        if (!result[category]) {
+          result[category] = [];
+        }
+        result[category].push(
+          product
+        );
+        return result;
+      },
+      {}
+    );
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <AppHeader
+        title="Продукты"
+        subtitle={`${productsArray.length} продуктов`}
+        onProfilePress={
+          goProfile
+        }
+      />
+      <SearchBar
+        value={
+          productsSearch
+        }
+        onChangeText={
+          setProductsSearch
+        }
+        placeholder="Найти продукт..."
+      />
+      <View
+        style={
+          styles.productInfoCard
+        }
+      >
+        <Text
+          style={
+            styles.productInfoTitle
+          }
+        >
+          КБЖУ на 100 г
+        </Text>
+        <Text
+          style={
+            styles.productInfoText
+          }
+        >
+          Выбирай продукты с
+          понятной пищевой
+          ценностью и используй
+          их в своих рецептах.
+        </Text>
+      </View>
+      {Object.keys(
+        grouped
+      ).map(
+        (category) => (
+          <View
+            key={
+              category
+            }
+          >
+            <SectionTitle
+              title={
+                category
+              }
+            />
+            {grouped[
+              category
+            ].map(
+              (product) => (
+                <View
+                  key={
+                    product.id ||
+                    product.name
+                  }
+                  style={
+                    styles.productCard
+                  }
+                >
+                  <View
+                    style={
+                      styles.productIcon
                     }
                   >
                     <Text
                       style={{
-                        fontSize: 24,
+                        fontSize: 25,
                       }}
                     >
-                      {item.meal ===
-                      "Завтрак"
-                        ? "☀️"
-                        : item.meal ===
-                          "Обед"
-                        ? "🍲"
-                        : item.meal ===
-                          "Ужин"
-                        ? "🌙"
-                        : "🍎"}
+                      {getProductEmoji(
+                        product
+                      )}
                     </Text>
                   </View>
-
                   <View
                     style={
-                      styles.diaryMealMain
+                      styles.productMain
                     }
                   >
                     <Text
                       style={
-                        styles.diaryMealType
+                        styles.productName
                       }
                     >
                       {
-                        item.meal
+                        product.name
                       }
-                      {item.time
-                        ? ` · ${item.time}`
-                        : ""}
                     </Text>
-
                     <Text
                       style={
-                        styles.diaryMealName
+                        styles.productKcal
                       }
                     >
-                      {recipe?.title ||
-                        recipe?.name ||
-                        "Рецепт удалён"}
+                      {Math.round(
+                        Number(
+                          product.kcal
+                        ) || 0
+                      )}{" "}
+                      ккал / 100 г
                     </Text>
-
-                    {nutrition && (
+                    <View
+                      style={
+                        styles.productMacros
+                      }
+                    >
                       <Text
                         style={
-                          styles.diaryMealKcal
+                          styles.productMacroText
                         }
                       >
-                        {Math.round(
-                          nutrition.kcal
-                        )}{" "}
-                        ккал
+                        Б{" "}
+                        {Number(
+                          product.protein
+                        ) || 0}
                       </Text>
-                    )}
-                  </View>
-
-                  <View
-                    style={
-                      styles.diaryMealActions
-                    }
-                  >
-                    <Pressable
-                      onPress={() =>
-                        startEditDiaryMeal(
-                          item
-                        )
-                      }
-                      style={
-                        styles.iconButton
-                      }
-                    >
-                      <Text>
-                        ✏️
+                      <Text
+                        style={
+                          styles.productMacroText
+                        }
+                      >
+                        Ж{" "}
+                        {Number(
+                          product.fat
+                        ) || 0}
                       </Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={() =>
-                        removeDiaryMeal(
-                          item
-                        )
-                      }
-                      style={
-                        styles.iconButton
-                      }
-                    >
-                      <Text>
-                        🗑️
+                      <Text
+                        style={
+                          styles.productMacroText
+                        }
+                      >
+                        У{" "}
+                        {Number(
+                          product.carbs
+                        ) || 0}
                       </Text>
-                    </Pressable>
+                    </View>
                   </View>
                 </View>
-              );
-            }
-          )
-        ) : (
-          <EmptyState
-            title="Нет приёмов пищи"
-            text="Добавь рецепт в план на этот день."
-          />
-        )}
-
-        <SectionTitle
-          title={
-            editingDiaryId
-              ? "Изменить приём пищи"
-              : "Добавить приём пищи"
+              )
+            )}
+          </View>
+        )
+      )}
+      {filteredProductsArray.length ===
+        0 && (
+        <EmptyState
+          title="Продукт не найден"
+          text="Попробуй другое название."
+          button="Очистить поиск"
+          onPress={() =>
+            setProductsSearch(
+              ""
+            )
           }
         />
+      )}
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
 
-        <View
-          style={
-            styles.formCard
+  // ============================================================
+// FAVORITES SCREEN
+// ============================================================
+function renderFavoritesScreen() {
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const favoriteRecipes =
+    recipesArray.filter(
+      (recipe) =>
+        isFavorite(
+          recipe.id
+        )
+    );
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <AppHeader
+        title="Избранное"
+        subtitle={
+          favoriteRecipes.length
+            ? `${favoriteRecipes.length} сохранено`
+            : "Сохрани понравившиеся рецепты"
+        }
+        onProfilePress={
+          goProfile
+        }
+      />
+      {favoriteRecipes.length >
+      0 ? (
+        favoriteRecipes.map(
+          (recipe) => (
+            <RecipeCard
+              key={
+                recipe.id
+              }
+              recipe={
+                recipe
+              }
+              nutrition={
+                calculateRecipeNutrition(
+                  recipe,
+                  productsArray
+                )
+              }
+              favorite
+              onPress={() =>
+                openRecipe(
+                  recipe.id
+                )
+              }
+              onFavorite={() =>
+                toggleFavorite(
+                  recipe.id
+                )
+              }
+            />
+          )
+        )
+      ) : (
+        <EmptyState
+          title="Здесь пока пусто"
+          text="Нажимай на сердечко ❤️, чтобы сохранять рецепты."
+          button="Открыть рецепты"
+          onPress={
+            goRecipes
           }
-        >
-          <Text
-            style={
-              styles.formLabel
-            }
-          >
-            Приём пищи
-          </Text>
-
-          <View
-            style={
-              styles.mealTypeGrid
-            }
-          >
-            {mealLabels.map(
-              (meal) => (
-                <Pressable
-                  key={
-                    meal
-                  }
-                  onPress={() =>
-                    setDiaryMeal(
-                      meal
-                    )
-                  }
+        />
+      )}
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+// ============================================================
+// DIARY SCREEN
+// ============================================================
+function renderDiaryScreen() {
+  const days = [
+    {
+      id: 1,
+      label: "Пн",
+    },
+    {
+      id: 2,
+      label: "Вт",
+    },
+    {
+      id: 3,
+      label: "Ср",
+    },
+    {
+      id: 4,
+      label: "Чт",
+    },
+    {
+      id: 5,
+      label: "Пт",
+    },
+    {
+      id: 6,
+      label: "Сб",
+    },
+    {
+      id: 7,
+      label: "Вс",
+    },
+  ];
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const currentDiaryArray =
+    Array.isArray(
+      currentDayDiary
+    )
+      ? currentDayDiary
+      : [];
+  const target =
+    Number(
+      settings?.diaryTargets?.[
+        String(diaryDay)
+      ]
+    ) || 0;
+  const mealLabels = [
+    "Завтрак",
+    "Обед",
+    "Ужин",
+    "Перекус",
+  ];
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <AppHeader
+        title="Дневник"
+        subtitle="Твой план питания"
+        onProfilePress={
+          goProfile
+        }
+      />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={
+          false
+        }
+        contentContainerStyle={{
+          paddingRight: 20,
+        }}
+      >
+        {days.map(
+          (day) => {
+            const active =
+              Number(
+                diaryDay
+              ) ===
+              Number(
+                day.id
+              );
+            return (
+              <Pressable
+                key={
+                  day.id
+                }
+                onPress={() =>
+                  setDiaryDay(
+                    day.id
+                  )
+                }
+                style={[
+                  styles.dayPill,
+                  active &&
+                    styles.dayPillActive,
+                ]}
+              >
+                <Text
                   style={[
-                    styles.mealTypeButton,
-                    diaryMeal ===
-                      meal &&
-                      styles.mealTypeButtonActive,
+                    styles.dayPillText,
+                    active &&
+                      styles.dayPillTextActive,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.mealTypeText,
-                      diaryMeal ===
-                        meal &&
-                        styles.mealTypeTextActive,
-                    ]}
-                  >
-                    {meal}
-                  </Text>
-                </Pressable>
-              )
-            )}
-          </View>
-
-          <FormInput
-            label="Время"
-            value={
-              diaryTime
-            }
-            onChangeText={
-              setDiaryTime
-            }
-            placeholder="Например, 08:30"
-          />
-
+                  {
+                    day.label
+                  }
+                </Text>
+              </Pressable>
+            );
+          }
+        )}
+      </ScrollView>
+      <View
+        style={
+          styles.diarySummaryCard
+        }
+      >
+        <Text
+          style={
+            styles.diarySummaryTitle
+          }
+        >
+          Цель на день
+        </Text>
+        <View
+          style={
+            styles.diaryCaloriesRow
+          }
+        >
           <Text
             style={
-              styles.formLabel
+              styles.diaryCalories
             }
           >
-            Рецепт
+            {Math.round(
+              currentDayCalories
+            )}
           </Text>
-
-          <View
+          <Text
             style={
-              styles.recipeSelectBox
+              styles.diaryCaloriesUnit
             }
           >
-            <ScrollView
-              style={{
-                maxHeight: 220,
-              }}
-              nestedScrollEnabled
-            >
-              {recipes.map(
-                (recipe) => {
-                  const active =
-                    String(
-                      diaryRecipeId
-                    ) ===
-                    String(
-                      recipe.id
-                    );
-
-                  return (
-                    <Pressable
-                      key={
-                        recipe.id
-                      }
-                      onPress={() =>
-                        setDiaryRecipeId(
-                          recipe.id
-                        )
-                      }
-                      style={[
-                        styles.recipeSelectItem,
-                        active &&
-                          styles.recipeSelectItemActive,
-                      ]}
-                    >
-                      <Text
-                        style={
-                          styles.recipeSelectEmoji
-                        }
-                      >
-                        🍽️
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.recipeSelectText,
-                          active &&
-                            styles.recipeSelectTextActive,
-                        ]}
-                        numberOfLines={
-                          1
-                        }
-                      >
-                        {
-                          recipe.title ||
-                          recipe.name
-                        }
-                      </Text>
-
-                      {active && (
-                        <Text>
-                          ✓
-                        </Text>
-                      )}
-                    </Pressable>
-                  );
-                }
-              )}
-            </ScrollView>
-          </View>
-
-          <PrimaryButton
-            title={
-              editingDiaryId
-                ? "Сохранить изменения"
-                : "Добавить в дневник"
-            }
-            onPress={
-              editingDiaryId
-                ? updateDiaryMeal
-                : addDiaryMeal
-            }
-          />
-
-          {editingDiaryId && (
-            <SecondaryButton
-              title="Отмена"
-              onPress={() => {
-                setEditingDiaryId(
-                  null
-                );
-
-                setDiaryRecipeId(
-                  ""
-                );
-
-                setDiaryTime(
-                  ""
-                );
-              }}
-            />
-          )}
+            / {target || "—"} ккал
+          </Text>
         </View>
-
         <View
           style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // SCREEN SWITCH
-  // ============================================================
-
-  if (screen === "home") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderHomeScreen()}
-        {renderBottomNavigation()}
-      </View>
-    );
-  }
-
-  if (screen === "recipes") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderRecipesScreen()}
-        {renderBottomNavigation()}
-      </View>
-    );
-  }
-
-  if (screen === "recipe") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderRecipeScreen()}
-        {renderBottomNavigation()}
-      </View>
-    );
-  }
-
-  if (screen === "products") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderProductsScreen()}
-        {renderBottomNavigation()}
-      </View>
-    );
-  }
-
-  if (screen === "favorites") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderFavoritesScreen()}
-        {renderBottomNavigation()}
-      </View>
-    );
-  }
-
-  if (screen === "diary") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderDiaryScreen()}
-        {renderBottomNavigation()}
-      </View>
-    );
-  }
-  // ============================================================
-  // PROFILE SCREEN
-  // ============================================================
-
-  function renderProfileScreen() {
-    const profileName =
-      profile?.name ||
-      authUser?.user_metadata?.name ||
-      "PaCook User";
-
-    const profileUsername =
-      profile?.username || "";
-
-    const profileBio =
-      profile?.bio || "";
-
-    const profileAvatar =
-      profile?.avatar ||
-      profile?.photo ||
-      authUser?.user_metadata?.avatar ||
-      "";
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
-      >
-        <AppHeader
-          title="Профиль"
-          subtitle="Твой PaCook"
-          onProfilePress={
-            () => {}
-          }
-        />
-
-        <View
-          style={
-            styles.profileHero
+            styles.progressTrack
           }
         >
           <View
-            style={
-              styles.profileAvatarLarge
-            }
-          >
-            {profileAvatar ? (
-              <ImageWithFallback
-                uri={
-                  profileAvatar
+            style={[
+              styles.progressFill,
+              {
+                width:
+                  target > 0
+                    ? `${Math.min(
+                        100,
+                        Math.max(
+                          0,
+                          (currentDayCalories /
+                            target) *
+                            100
+                        )
+                      )}%`
+                    : "0%",
+              },
+            ]}
+          />
+        </View>
+        <View
+          style={
+            styles.diaryMacroGrid
+          }
+        >
+          <MacroRow
+            label="Белки"
+            value={`${Math.round(
+              currentDayMacros?.protein ||
+                0
+            )} г`}
+          />
+          <MacroRow
+            label="Жиры"
+            value={`${Math.round(
+              currentDayMacros?.fat ||
+                0
+            )} г`}
+          />
+          <MacroRow
+            label="Углеводы"
+            value={`${Math.round(
+              currentDayMacros?.carbs ||
+                0
+            )} г`}
+          />
+        </View>
+        <FormInput
+          label="Калорийная цель"
+          value={
+            target
+              ? String(target)
+              : ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            saveDiaryTarget(
+              diaryDay,
+              value
+            )
+          }
+          keyboardType="numeric"
+          placeholder="Например, 2200"
+        />
+      </View>
+      <SectionTitle
+        title={`Питание — ${
+          days.find(
+            (day) =>
+              day.id ===
+              Number(
+                diaryDay
+              )
+          )?.label ||
+          ""
+        }`}
+      />
+      {currentDiaryArray.length >
+      0 ? (
+        currentDiaryArray.map(
+          (item) => {
+            const recipe =
+              recipesArray.find(
+                (recipeItem) =>
+                  String(
+                    recipeItem?.id
+                  ) ===
+                  String(
+                    item?.recipeId
+                  )
+              );
+            const nutrition =
+              recipe
+                ? calculateRecipeNutrition(
+                    recipe,
+                    productsArray
+                  )
+                : null;
+            return (
+              <View
+                key={
+                  item.id
                 }
                 style={
-                  styles.profileAvatarImage
+                  styles.diaryMealCard
                 }
-                fallback="👨‍🍳"
-              />
-            ) : (
-              <Text
-                style={{
-                  fontSize: 42,
-                }}
               >
-                👨‍🍳
-              </Text>
-            )}
-          </View>
-
-          <Text
-            style={
-              styles.profileName
-            }
-          >
-            {profileName}
-          </Text>
-
-          {!!profileUsername && (
-            <Text
-              style={
-                styles.profileUsername
-              }
-            >
-              @{profileUsername}
-            </Text>
-          )}
-
-          <Text
-            style={
-              styles.profileEmail
-            }
-          >
-            {authUser?.email ||
-              "Твой персональный профиль"}
-          </Text>
-
-          {!!profileBio && (
-            <Text
-              style={
-                styles.profileBio
-              }
-            >
-              {profileBio}
-            </Text>
-          )}
-
-          <SecondaryButton
-            title="Редактировать профиль"
-            onPress={
-              startEditProfile
-            }
-          />
-        </View>
-
+                <View
+                  style={
+                    styles.diaryMealIcon
+                  }
+                >
+                  <Text
+                    style={{
+                      fontSize: 24,
+                    }}
+                  >
+                    {item.meal ===
+                    "Завтрак"
+                      ? "☀️"
+                      : item.meal ===
+                        "Обед"
+                      ? "🍲"
+                      : item.meal ===
+                        "Ужин"
+                      ? "🌙"
+                      : "🍎"}
+                  </Text>
+                </View>
+                <View
+                  style={
+                    styles.diaryMealMain
+                  }
+                >
+                  <Text
+                    style={
+                      styles.diaryMealType
+                    }
+                  >
+                    {
+                      item.meal
+                    }
+                    {item.time
+                      ? ` · ${item.time}`
+                      : ""}
+                  </Text>
+                  <Text
+                    style={
+                      styles.diaryMealName
+                    }
+                  >
+                    {recipe?.title ||
+                      recipe?.name ||
+                      "Рецепт удалён"}
+                  </Text>
+                  {nutrition && (
+                    <Text
+                      style={
+                        styles.diaryMealKcal
+                      }
+                    >
+                      {Math.round(
+                        nutrition?.perServing
+                          ?.kcal ??
+                          nutrition?.kcal ??
+                          0
+                      )}{" "}
+                      ккал
+                    </Text>
+                  )}
+                </View>
+                <View
+                  style={
+                    styles.diaryMealActions
+                  }
+                >
+                  <Pressable
+                    onPress={() =>
+                      startEditDiaryMeal(
+                        item
+                      )
+                    }
+                    style={
+                      styles.iconButton
+                    }
+                  >
+                    <Text>
+                      ✏️
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      removeDiaryMeal(
+                        item
+                      )
+                    }
+                    style={
+                      styles.iconButton
+                    }
+                  >
+                    <Text>
+                      🗑️
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          }
+        )
+      ) : (
+        <EmptyState
+          title="Нет приёмов пищи"
+          text="Добавь рецепт в план на этот день."
+        />
+      )}
+      <SectionTitle
+        title={
+          editingDiaryId
+            ? "Изменить приём пищи"
+            : "Добавить приём пищи"
+        }
+      />
+      <View
+        style={
+          styles.formCard
+        }
+      >
+        <Text
+          style={
+            styles.formLabel
+          }
+        >
+          Приём пищи
+        </Text>
         <View
           style={
-            styles.profileStats
+            styles.mealTypeGrid
           }
         >
-          <StatCard
-            label="Рецепты"
-            value={
-              recipes.length
-            }
-          />
-
-          <StatCard
-            label="Продукты"
-            value={
-              products.length
-            }
-          />
-
-          <StatCard
-            label="Избранное"
-            value={
-              favorites.length
-            }
-          />
+          {mealLabels.map(
+            (meal) => (
+              <Pressable
+                key={
+                  meal
+                }
+                onPress={() =>
+                  setDiaryMeal(
+                    meal
+                  )
+                }
+                style={[
+                  styles.mealTypeButton,
+                  diaryMeal ===
+                    meal &&
+                    styles.mealTypeButtonActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.mealTypeText,
+                    diaryMeal ===
+                      meal &&
+                      styles.mealTypeTextActive,
+                  ]}
+                >
+                  {meal}
+                </Text>
+              </Pressable>
+            )
+          )}
         </View>
-
-        <SectionTitle
-          title="Мой PaCook"
+        <FormInput
+          label="Время"
+          value={
+            diaryTime
+          }
+          onChangeText={
+            setDiaryTime
+          }
+          placeholder="Например, 08:30"
         />
-
-        <Pressable
+        <Text
           style={
-            styles.menuCard
-          }
-          onPress={
-            goDiary
+            styles.formLabel
           }
         >
-          <View
-            style={
-              styles.menuIcon
-            }
-          >
-            <Text
-              style={{
-                fontSize: 22,
-              }}
-            >
-              📅
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.menuMain
-            }
-          >
-            <Text
-              style={
-                styles.menuTitle
-              }
-            >
-              Дневник питания
-            </Text>
-
-            <Text
-              style={
-                styles.menuSubtitle
-              }
-            >
-              Планируй питание на
-              всю неделю
-            </Text>
-          </View>
-
-          <Text
-            style={
-              styles.menuArrow
-            }
-          >
-            ›
-          </Text>
-        </Pressable>
-
-        <Pressable
+          Рецепт
+        </Text>
+        <View
           style={
-            styles.menuCard
-          }
-          onPress={
-            goFavorites
+            styles.recipeSelectBox
           }
         >
-          <View
-            style={
-              styles.menuIcon
-            }
+          <ScrollView
+            style={{
+              maxHeight: 220,
+            }}
+            nestedScrollEnabled
           >
-            <Text
-              style={{
-                fontSize: 22,
-              }}
-            >
-              ❤️
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.menuMain
-            }
-          >
-            <Text
-              style={
-                styles.menuTitle
+            {recipesArray.map(
+              (recipe) => {
+                const active =
+                  String(
+                    diaryRecipeId
+                  ) ===
+                  String(
+                    recipe.id
+                  );
+                return (
+                  <Pressable
+                    key={
+                      recipe.id
+                    }
+                    onPress={() =>
+                      setDiaryRecipeId(
+                        recipe.id
+                      )
+                    }
+                    style={[
+                      styles.recipeSelectItem,
+                      active &&
+                        styles.recipeSelectItemActive,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        styles.recipeSelectEmoji
+                      }
+                    >
+                      🍽️
+                    </Text>
+                    <Text
+                      style={[
+                        styles.recipeSelectText,
+                        active &&
+                          styles.recipeSelectTextActive,
+                      ]}
+                      numberOfLines={
+                        1
+                      }
+                    >
+                      {
+                        recipe.title ||
+                        recipe.name
+                      }
+                    </Text>
+                    {active && (
+                      <Text>
+                        ✓
+                      </Text>
+                    )}
+                  </Pressable>
+                );
               }
-            >
-              Избранное
-            </Text>
-
-            <Text
-              style={
-                styles.menuSubtitle
-              }
-            >
-              Сохранённые рецепты
-            </Text>
-          </View>
-
-          <Text
-            style={
-              styles.menuArrow
-            }
-          >
-            ›
-          </Text>
-        </Pressable>
-
-        <SectionTitle
-          title="Автор"
+            )}
+          </ScrollView>
+        </View>
+        <PrimaryButton
+          title={
+            editingDiaryId
+              ? "Сохранить изменения"
+              : "Добавить в дневник"
+          }
+          onPress={
+            editingDiaryId
+              ? updateDiaryMeal
+              : addDiaryMeal
+          }
         />
-
-        <Pressable
-          style={
-            styles.authorProfileCard
-          }
-          onPress={
-            enterAuthorMode
-          }
-        >
-          <View
-            style={
-              styles.authorBadge
-            }
-          >
-            <Text
-              style={{
-                fontSize: 26,
-              }}
-            >
-              ✨
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.menuMain
-            }
-          >
-            <Text
-              style={
-                styles.menuTitle
-              }
-            >
-              Авторский режим
-            </Text>
-
-            <Text
-              style={
-                styles.menuSubtitle
-              }
-            >
-              {authorUnlocked
-                ? "Управление твоими рецептами и продуктами"
-                : "Создавай свои рецепты"}
-            </Text>
-          </View>
-
-          <Text
-            style={
-              styles.menuArrow
-            }
-          >
-            ›
-          </Text>
-        </Pressable>
-
-        <SectionTitle
-          title="Настройки"
-        />
-
-        <Pressable
-          style={
-            styles.menuCard
-          }
-          onPress={
-            goSettings
-          }
-        >
-          <View
-            style={
-              styles.menuIcon
-            }
-          >
-            <Text
-              style={{
-                fontSize: 22,
-              }}
-            >
-              ⚙️
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.menuMain
-            }
-          >
-            <Text
-              style={
-                styles.menuTitle
-              }
-            >
-              Настройки
-            </Text>
-
-            <Text
-              style={
-                styles.menuSubtitle
-              }
-            >
-              Приложение и данные
-            </Text>
-          </View>
-
-          <Text
-            style={
-              styles.menuArrow
-            }
-          >
-            ›
-          </Text>
-        </Pressable>
-
-        {authUser ? (
-          <Pressable
-            style={
-              styles.logoutButton
-            }
-            onPress={
-              logoutUser
-            }
-          >
-            <Text
-              style={
-                styles.logoutText
-              }
-            >
-              Выйти из аккаунта
-            </Text>
-          </Pressable>
-        ) : (
-          <PrimaryButton
-            title="Войти / Регистрация"
-            onPress={() =>
-              setScreen(
-                "auth"
-              )
-            }
+        {editingDiaryId && (
+          <SecondaryButton
+            title="Отмена"
+            onPress={() => {
+              setEditingDiaryId(
+                null
+              );
+              setDiaryRecipeId(
+                ""
+              );
+              setDiaryTime(
+                ""
+              );
+            }}
           />
         )}
-
-        <View
-          style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // PROFILE EDIT SCREEN
-  // ============================================================
-
-  function renderProfileEditScreen() {
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
+      </View>
+      <View
+        style={
+          styles.bottomSpacer
         }
-        showsVerticalScrollIndicator={
-          false
+      />
+    </ScrollView>
+  );
+}
+
+  // ============================================================
+// SCREEN SWITCH
+// ============================================================
+if (screen === "home") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderHomeScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+if (screen === "recipes") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderRecipesScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+if (screen === "recipe") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderRecipeScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+if (screen === "products") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderProductsScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+if (screen === "favorites") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderFavoritesScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+if (screen === "diary") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderDiaryScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+// ============================================================
+// PROFILE SCREEN
+// ============================================================
+function renderProfileScreen() {
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const favoritesArray =
+    Array.isArray(favorites)
+      ? favorites
+      : [];
+  const profileName =
+    profile?.name ||
+    authUser?.user_metadata?.name ||
+    "PaCook User";
+  const profileUsername =
+    profile?.username || "";
+  const profileBio =
+    profile?.bio || "";
+  const profileAvatar =
+    profile?.avatar ||
+    profile?.photo ||
+    authUser?.user_metadata?.avatar ||
+    "";
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <AppHeader
+        title="Профиль"
+        subtitle="Твой PaCook"
+        onProfilePress={
+          () => {}
+        }
+      />
+      <View
+        style={
+          styles.profileHero
         }
       >
         <View
           style={
-            styles.simpleTopBar
+            styles.profileAvatarLarge
           }
         >
-          <Pressable
-            onPress={
-              goProfile
-            }
-            style={
-              styles.backButton
-            }
-          >
-            <Text
-              style={
-                styles.backButtonText
-              }
-            >
-              ‹
-            </Text>
-          </Pressable>
-
-          <Text
-            style={
-              styles.simpleTopTitle
-            }
-          >
-            Редактирование
-          </Text>
-
-          <View
-            style={{
-              width: 42,
-            }}
-          />
-        </View>
-
-        <View
-          style={
-            styles.editProfileAvatar
-          }
-        >
-          {profileForm.avatar ? (
+          {profileAvatar ? (
             <ImageWithFallback
               uri={
-                profileForm.avatar
+                profileAvatar
               }
               style={
-                styles.editProfileAvatarImage
+                styles.profileAvatarImage
               }
               fallback="👨‍🍳"
             />
@@ -11102,1496 +11486,2012 @@ export default function App() {
             </Text>
           )}
         </View>
-
         <Text
           style={
-            styles.avatarHint
+            styles.profileName
           }
         >
-          Фото сохраняется как
-          ссылка и не пропадает
-          после обновления
-          приложения.
+          {profileName}
         </Text>
-
-        <View
+        {!!profileUsername && (
+          <Text
+            style={
+              styles.profileUsername
+            }
+          >
+            @{profileUsername}
+          </Text>
+        )}
+        <Text
           style={
-            styles.formCard
+            styles.profileEmail
           }
         >
-          <FormInput
-            label="Имя"
-            value={
-              profileForm.name
+          {authUser?.email ||
+            "Твой персональный профиль"}
+        </Text>
+        {!!profileBio && (
+          <Text
+            style={
+              styles.profileBio
             }
-            onChangeText={(
-              value
-            ) =>
-              setProfileForm(
-                (current) => ({
-                  ...current,
-                  name: value,
-                })
-              )
-            }
-            placeholder="Твоё имя"
-          />
-
-          <FormInput
-            label="Никнейм"
-            value={
-              profileForm.username
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProfileForm(
-                (current) => ({
-                  ...current,
-                  username:
-                    value.replace(
-                      /\s/g,
-                      ""
-                    ),
-                })
-              )
-            }
-            placeholder="username"
-            autoCapitalize="none"
-          />
-
-          <FormInput
-            label="Город"
-            value={
-              profileForm.city
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProfileForm(
-                (current) => ({
-                  ...current,
-                  city: value,
-                })
-              )
-            }
-            placeholder="Например, Алматы"
-          />
-
-          <FormInput
-            label="О себе"
-            value={
-              profileForm.bio
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProfileForm(
-                (current) => ({
-                  ...current,
-                  bio: value,
-                })
-              )
-            }
-            placeholder="Расскажи немного о себе"
-            multiline
-          />
-
-          <FormInput
-            label="Ссылка на фото"
-            value={
-              profileForm.avatar
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProfileForm(
-                (current) => ({
-                  ...current,
-                  avatar: value,
-                })
-              )
-            }
-            placeholder="https://..."
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-
-          <PrimaryButton
-            title="Сохранить профиль"
-            onPress={
-              saveProfile
-            }
-          />
-
-          <SecondaryButton
-            title="Отмена"
-            onPress={
-              goProfile
-            }
-          />
-        </View>
-
-        <View
-          style={
-            styles.bottomSpacer
+          >
+            {profileBio}
+          </Text>
+        )}
+        <SecondaryButton
+          title="Редактировать профиль"
+          onPress={
+            startEditProfile
           }
         />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // AUTHOR SCREEN
-  // ============================================================
-
-  function renderAuthorScreen() {
-    if (!authUser) {
-      return (
-        <View
-          style={
-            styles.centerScreen
-          }
-        >
-          <Text
-            style={
-              styles.emptyEmoji
-            }
-          >
-            🔐
-          </Text>
-
-          <Text
-            style={
-              styles.emptyTitle
-            }
-          >
-            Нужен аккаунт
-          </Text>
-
-          <Text
-            style={
-              styles.emptyText
-            }
-          >
-            Войди в аккаунт, чтобы
-            управлять своими
-            рецептами и продуктами.
-          </Text>
-
-          <PrimaryButton
-            title="Войти"
-            onPress={() =>
-              setScreen(
-                "auth"
-              )
-            }
-          />
-        </View>
-      );
-    }
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
+      </View>
+      <View
+        style={
+          styles.profileStats
         }
-        showsVerticalScrollIndicator={
-          false
+      >
+        <StatCard
+          label="Рецепты"
+          value={
+            recipesArray.length
+          }
+        />
+        <StatCard
+          label="Продукты"
+          value={
+            productsArray.length
+          }
+        />
+        <StatCard
+          label="Избранное"
+          value={
+            favoritesArray.length
+          }
+        />
+      </View>
+      <SectionTitle
+        title="Мой PaCook"
+      />
+      <Pressable
+        style={
+          styles.menuCard
+        }
+        onPress={
+          goDiary
         }
       >
         <View
           style={
-            styles.simpleTopBar
+            styles.menuIcon
           }
         >
-          <Pressable
-            onPress={
-              leaveAuthorMode
-            }
-            style={
-              styles.backButton
-            }
-          >
-            <Text
-              style={
-                styles.backButtonText
-              }
-            >
-              ‹
-            </Text>
-          </Pressable>
-
           <Text
-            style={
-              styles.simpleTopTitle
-            }
+            style={{
+              fontSize: 22,
+            }}
           >
-            Автор
+            📅
           </Text>
-
-          <Pressable
-            onPress={
-              goSettings
-            }
-            style={
-              styles.topIconButton
-            }
-          >
-            <Text>
-              ⚙️
-            </Text>
-          </Pressable>
         </View>
-
         <View
           style={
-            styles.authorHero
+            styles.menuMain
           }
         >
-          <View
-            style={
-              styles.authorHeroIcon
-            }
-          >
-            <Text
-              style={{
-                fontSize: 34,
-              }}
-            >
-              ✨
-            </Text>
-          </View>
-
           <Text
             style={
-              styles.authorHeroTitle
+              styles.menuTitle
+            }
+          >
+            Дневник питания
+          </Text>
+          <Text
+            style={
+              styles.menuSubtitle
+            }
+          >
+            Планируй питание на
+            всю неделю
+          </Text>
+        </View>
+        <Text
+          style={
+            styles.menuArrow
+          }
+        >
+          ›
+        </Text>
+      </Pressable>
+      <Pressable
+        style={
+          styles.menuCard
+        }
+        onPress={
+          goFavorites
+        }
+      >
+        <View
+          style={
+            styles.menuIcon
+          }
+        >
+          <Text
+            style={{
+              fontSize: 22,
+            }}
+          >
+            ❤️
+          </Text>
+        </View>
+        <View
+          style={
+            styles.menuMain
+          }
+        >
+          <Text
+            style={
+              styles.menuTitle
+            }
+          >
+            Избранное
+          </Text>
+          <Text
+            style={
+              styles.menuSubtitle
+            }
+          >
+            Сохранённые рецепты
+          </Text>
+        </View>
+        <Text
+          style={
+            styles.menuArrow
+          }
+        >
+          ›
+        </Text>
+      </Pressable>
+      <SectionTitle
+        title="Автор"
+      />
+      <Pressable
+        style={
+          styles.authorProfileCard
+        }
+        onPress={
+          enterAuthorMode
+        }
+      >
+        <View
+          style={
+            styles.authorBadge
+          }
+        >
+          <Text
+            style={{
+              fontSize: 26,
+            }}
+          >
+            ✨
+          </Text>
+        </View>
+        <View
+          style={
+            styles.menuMain
+          }
+        >
+          <Text
+            style={
+              styles.menuTitle
             }
           >
             Авторский режим
           </Text>
-
           <Text
             style={
-              styles.authorHeroText
+              styles.menuSubtitle
             }
           >
-            Создавай и редактируй
-            собственные продукты и
-            рецепты. Изменения
-            сохраняются локально и
-            синхронизируются с
-            аккаунтом.
+            {authorUnlocked
+              ? "Управление твоими рецептами и продуктами"
+              : "Создавай свои рецепты"}
           </Text>
         </View>
-
-        <View
+        <Text
           style={
-            styles.profileStats
+            styles.menuArrow
           }
         >
-          <StatCard
-            label="Мои продукты"
-            value={
-              customProductsCount
-            }
-          />
-
-          <StatCard
-            label="Мои рецепты"
-            value={
-              customRecipesCount
-            }
-          />
-        </View>
-
-        <SectionTitle
-          title="Создать"
-        />
-
-        <View
-          style={
-            styles.authorActionGrid
-          }
-        >
-          <Pressable
-            style={
-              styles.authorActionCard
-            }
-            onPress={
-              startNewRecipe
-            }
-          >
-            <Text
-              style={
-                styles.authorActionEmoji
-              }
-            >
-              🍳
-            </Text>
-
-            <Text
-              style={
-                styles.authorActionTitle
-              }
-            >
-              Новый рецепт
-            </Text>
-
-            <Text
-              style={
-                styles.authorActionText
-              }
-            >
-              Добавить рецепт
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={
-              styles.authorActionCard
-            }
-            onPress={
-              startNewProduct
-            }
-          >
-            <Text
-              style={
-                styles.authorActionEmoji
-              }
-            >
-              🥕
-            </Text>
-
-            <Text
-              style={
-                styles.authorActionTitle
-              }
-            >
-              Новый продукт
-            </Text>
-
-            <Text
-              style={
-                styles.authorActionText
-              }
-            >
-              Добавить продукт
-            </Text>
-          </Pressable>
-        </View>
-
-        <SectionTitle
-          title="Мои рецепты"
-        />
-
-        {recipes.filter(
-          (recipe) =>
-            recipe.custom ||
-            recipe.author_id
-        ).length > 0 ? (
-          recipes
-            .filter(
-              (recipe) =>
-                recipe.custom ||
-                recipe.author_id
-            )
-            .map(
-              (recipe) => (
-                <View
-                  key={
-                    recipe.id
-                  }
-                  style={
-                    styles.authorListCard
-                  }
-                >
-                  <ImageWithFallback
-                    uri={
-                      recipe.image ||
-                      recipe.image_url
-                    }
-                    style={
-                      styles.authorListImage
-                    }
-                    fallback="🍽️"
-                  />
-
-                  <View
-                    style={
-                      styles.authorListMain
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.authorListTitle
-                      }
-                      numberOfLines={
-                        2
-                      }
-                    >
-                      {recipe.title ||
-                        recipe.name}
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.authorListSubtitle
-                      }
-                    >
-                      {recipe.category ||
-                        "Другое"}
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.authorListKcal
-                      }
-                    >
-                      {Math.round(
-                        calculateRecipeNutrition(
-                          recipe
-                        ).kcal
-                      )}{" "}
-                      ккал
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.authorListActions
-                    }
-                  >
-                    <Pressable
-                      onPress={() =>
-                        startEditRecipe(
-                          recipe
-                        )
-                      }
-                      style={
-                        styles.authorSmallButton
-                      }
-                    >
-                      <Text>
-                        ✏️
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={() =>
-                        removeRecipe(
-                          recipe
-                        )
-                      }
-                      style={
-                        styles.authorSmallButton
-                      }
-                    >
-                      <Text>
-                        🗑️
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )
-            )
-        ) : (
-          <EmptyState
-            title="Нет своих рецептов"
-            text="Создай первый рецепт."
-            button="Создать рецепт"
-            onPress={
-              startNewRecipe
-            }
-          />
-        )}
-
-        <SectionTitle
-          title="Мои продукты"
-        />
-
-        {products.filter(
-          (product) =>
-            product.custom ||
-            product.author_id
-        ).length > 0 ? (
-          products
-            .filter(
-              (product) =>
-                product.custom ||
-                product.author_id
-            )
-            .map(
-              (product) => (
-                <View
-                  key={
-                    product.id
-                  }
-                  style={
-                    styles.authorProductCard
-                  }
-                >
-                  <View
-                    style={
-                      styles.authorProductIcon
-                    }
-                  >
-                    <Text
-                      style={{
-                        fontSize: 24,
-                      }}
-                    >
-                      {getProductEmoji(
-                        product
-                      )}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.authorProductMain
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.authorListTitle
-                      }
-                    >
-                      {
-                        product.name
-                      }
-                    </Text>
-
-                    <Text
-                      style={
-                        styles.authorListSubtitle
-                      }
-                    >
-                      {Math.round(
-                        Number(
-                          product.kcal
-                        ) || 0
-                      )}{" "}
-                      ккал · Б{" "}
-                      {product.protein ||
-                        0}{" "}
-                      · Ж{" "}
-                      {product.fat ||
-                        0}{" "}
-                      · У{" "}
-                      {product.carbs ||
-                        0}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={
-                      styles.authorListActions
-                    }
-                  >
-                    <Pressable
-                      onPress={() =>
-                        startEditProduct(
-                          product
-                        )
-                      }
-                      style={
-                        styles.authorSmallButton
-                      }
-                    >
-                      <Text>
-                        ✏️
-                      </Text>
-                    </Pressable>
-
-                    <Pressable
-                      onPress={() =>
-                        removeProduct(
-                          product
-                        )
-                      }
-                      style={
-                        styles.authorSmallButton
-                      }
-                    >
-                      <Text>
-                        🗑️
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )
-            )
-        ) : (
-          <EmptyState
-            title="Нет своих продуктов"
-            text="Добавь продукт для использования в рецептах."
-            button="Создать продукт"
-            onPress={
-              startNewProduct
-            }
-          />
-        )}
-
-        <View
-          style={
-            styles.bottomSpacer
-          }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // PRODUCT EDITOR
-  // ============================================================
-
-  function renderAuthorProductScreen() {
-    const editing =
-      Boolean(
-        editingProductName
-      );
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
+          ›
+        </Text>
+      </Pressable>
+      <SectionTitle
+        title="Настройки"
+      />
+      <Pressable
+        style={
+          styles.menuCard
         }
-        showsVerticalScrollIndicator={
-          false
+        onPress={
+          goSettings
         }
       >
         <View
           style={
-            styles.simpleTopBar
+            styles.menuIcon
           }
         >
-          <Pressable
-            onPress={() =>
-              setScreen(
-                "author"
-              )
-            }
-            style={
-              styles.backButton
-            }
-          >
-            <Text
-              style={
-                styles.backButtonText
-              }
-            >
-              ‹
-            </Text>
-          </Pressable>
-
           <Text
-            style={
-              styles.simpleTopTitle
-            }
-          >
-            {editing
-              ? "Изменить продукт"
-              : "Новый продукт"}
-          </Text>
-
-          <View
             style={{
-              width: 42,
+              fontSize: 22,
             }}
-          />
+          >
+            ⚙️
+          </Text>
         </View>
-
         <View
           style={
-            styles.formCard
+            styles.menuMain
           }
         >
-          <FormInput
-            label="Название"
-            value={
-              productForm.name
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  name: value,
-                })
-              )
-            }
-            placeholder="Например, Авокадо"
-          />
-
-          <FormInput
-            label="Категория"
-            value={
-              productForm.category
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  category:
-                    value,
-                })
-              )
-            }
-            placeholder="Овощи"
-          />
-
           <Text
             style={
-              styles.formSectionTitle
+              styles.menuTitle
             }
           >
-            КБЖУ на 100 г
+            Настройки
           </Text>
-
-          <FormInput
-            label="Калории"
-            value={
-              productForm.kcal
+          <Text
+            style={
+              styles.menuSubtitle
             }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  kcal: value,
-                })
-              )
-            }
-            keyboardType="decimal-pad"
-            placeholder="0"
-          />
-
-          <FormInput
-            label="Белки"
-            value={
-              productForm.protein
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  protein:
-                    value,
-                })
-              )
-            }
-            keyboardType="decimal-pad"
-            placeholder="0"
-          />
-
-          <FormInput
-            label="Жиры"
-            value={
-              productForm.fat
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  fat: value,
-                })
-              )
-            }
-            keyboardType="decimal-pad"
-            placeholder="0"
-          />
-
-          <FormInput
-            label="Углеводы"
-            value={
-              productForm.carbs
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  carbs: value,
-                })
-              )
-            }
-            keyboardType="decimal-pad"
-            placeholder="0"
-          />
-
-          <FormInput
-            label="Клетчатка"
-            value={
-              productForm.fiber
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  fiber: value,
-                })
-              )
-            }
-            keyboardType="decimal-pad"
-            placeholder="0"
-          />
-
-          <FormInput
-            label="Фото продукта"
-            value={
-              productForm.image
-            }
-            onChangeText={(
-              value
-            ) =>
-              setProductForm(
-                (current) => ({
-                  ...current,
-                  image: value,
-                })
-              )
-            }
-            placeholder="https://..."
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-
-          {!!productForm.image && (
-            <ImageWithFallback
-              uri={
-                productForm.image
-              }
-              style={
-                styles.editorImagePreview
-              }
-              fallback="🥕"
-            />
-          )}
-
-          <PrimaryButton
-            title={
-              editing
-                ? "Сохранить продукт"
-                : "Создать продукт"
-            }
-            onPress={
-              saveProduct
-            }
-          />
-
-          <SecondaryButton
-            title="Отмена"
-            onPress={() =>
-              setScreen(
-                "author"
-              )
-            }
-          />
+          >
+            Приложение и данные
+          </Text>
         </View>
-
-        <View
+        <Text
           style={
-            styles.bottomSpacer
+            styles.menuArrow
           }
-        />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // RECIPE EDITOR
-  // ============================================================
-
-function renderAuthorRecipeScreen() {
-  const editing = Boolean(editingRecipeId);
-
-  return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.simpleTopBar}>
-        <Pressable
-          onPress={() => setScreen("author")}
-          style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>‹</Text>
-        </Pressable>
-
-        <Text style={styles.simpleTopTitle}>
-          {editing ? "Изменить рецепт" : "Новый рецепт"}
+          ›
         </Text>
-
-        <View style={{ width: 42 }} />
-      </View>
-
-      <View style={styles.formCard}>
-        <FormInput
-          label="Название рецепта"
-          value={recipeForm.title}
-          onChangeText={(value) =>
-            setRecipeForm((current) => ({
-              ...current,
-              title: value,
-            }))
-          }
-          placeholder="Например, Синабоны"
-        />
-
-        <FormInput
-          label="Категория"
-          value={recipeForm.category}
-          onChangeText={(value) =>
-            setRecipeForm((current) => ({
-              ...current,
-              category: value,
-            }))
-          }
-          placeholder="Выпечка"
-        />
-
-        <FormInput
-          label="Описание"
-          value={recipeForm.description}
-          onChangeText={(value) =>
-            setRecipeForm((current) => ({
-              ...current,
-              description: value,
-            }))
-          }
-          placeholder="Коротко о рецепте"
-          multiline
-        />
-
-        <FormInput
-          label="Фото рецепта"
-          value={recipeForm.image}
-          onChangeText={(value) =>
-            setRecipeForm((current) => ({
-              ...current,
-              image: value,
-            }))
-          }
-          placeholder="https://..."
-          autoCapitalize="none"
-          keyboardType="url"
-        />
-
-        {!!recipeForm.image && (
-          <ImageWithFallback
-            uri={recipeForm.image}
-            style={styles.editorImagePreview}
-            fallback="🍳"
-          />
-        )}
-
-        <View style={styles.formTwoColumns}>
-          <View style={styles.formHalf}>
-            <FormInput
-              label="Порций"
-              value={String(recipeForm.servings || 1)}
-              onChangeText={(value) =>
-                setRecipeForm((current) => ({
-                  ...current,
-                  servings: Number(value) || 1,
-                }))
-              }
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={styles.formHalf}>
-            <FormInput
-              label="Подготовка, мин"
-              value={String(recipeForm.prepTime || 0)}
-              onChangeText={(value) =>
-                setRecipeForm((current) => ({
-                  ...current,
-                  prepTime: Number(value) || 0,
-                }))
-              }
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        <FormInput
-          label="Готовка, мин"
-          value={String(recipeForm.cookTime || 0)}
-          onChangeText={(value) =>
-            setRecipeForm((current) => ({
-              ...current,
-              cookTime: Number(value) || 0,
-            }))
-          }
-          keyboardType="numeric"
-        />
-
+      </Pressable>
+      {authUser ? (
         <Pressable
-          style={styles.proToggle}
-          onPress={() =>
-            setRecipeForm((current) => ({
-              ...current,
-              pro: !current.pro,
-            }))
+          style={
+            styles.logoutButton
+          }
+          onPress={
+            logoutUser
           }
         >
-          <View
-            style={[
-              styles.checkbox,
-              recipeForm.pro && styles.checkboxActive,
-            ]}
+          <Text
+            style={
+              styles.logoutText
+            }
           >
-            {recipeForm.pro && (
-              <Text style={styles.checkboxCheck}>✓</Text>
-            )}
-          </View>
-
-          <View style={styles.proToggleMain}>
-            <Text style={styles.proToggleTitle}>
-              PRO-рецепт
-            </Text>
-
-            <Text style={styles.proToggleText}>
-              Отметить рецепт как доступный по подписке PRO
-            </Text>
-          </View>
+            Выйти из аккаунта
+          </Text>
         </Pressable>
-      </View>
-
-      <SectionTitle title="Ингредиенты" />
-
-      <View style={styles.formCard}>
-        {recipeForm.ingredients.length === 0 && (
-          <Text style={styles.mutedText}>
-            Добавь продукты, которые входят в рецепт.
-          </Text>
-        )}
-
-        {recipeForm.ingredients.map((ingredient, index) => (
-          <View
-            key={`ingredient-editor-${index}`}
-            style={styles.ingredientEditorRow}
-          >
-            <View style={styles.ingredientEditorSelect}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{
-                  alignItems: "center",
-                }}
-              >
-                {products.map((product) => {
-                  const active =
-                    String(ingredient.productId) ===
-                    String(product.id);
-
-                  return (
-                    <Pressable
-                      key={product.id}
-                      onPress={() =>
-                        updateRecipeIngredient(
-                          index,
-                          "productId",
-                          product.id
-                        )
-                      }
-                      style={[
-                        styles.ingredientProductChip,
-                        active &&
-                          styles.ingredientProductChipActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.ingredientProductChipText,
-                          active &&
-                            styles.ingredientProductChipTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {product.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          </View>
-        ))}
-
-        {recipeForm.ingredients.map((ingredient, index) => {
-          const selectedProduct = products.find(
-            (product) =>
-              String(product.id) ===
-              String(ingredient.productId)
-          );
-
-          return (
-            <View
-              key={`ingredient-row-${index}`}
-              style={styles.ingredientWeightRow}
-            >
-              <Text
-                style={styles.ingredientWeightName}
-                numberOfLines={1}
-              >
-                {selectedProduct?.name || "Выбери продукт"}
-              </Text>
-
-              <TextInput
-                value={String(ingredient.grams ?? 0)}
-                onChangeText={(value) =>
-                  updateRecipeIngredient(
-                    index,
-                    "grams",
-                    value
-                  )
-                }
-                keyboardType="decimal-pad"
-                style={styles.ingredientWeightInput}
-                placeholder="г"
-              />
-
-              <Pressable
-                onPress={() =>
-                  removeRecipeIngredient(index)
-                }
-                style={styles.deleteIngredientButton}
-              >
-                <Text>✕</Text>
-              </Pressable>
-            </View>
-          );
-        })}
-
-        <SecondaryButton
-          title="+ Добавить ингредиент"
-          onPress={addRecipeIngredient}
+      ) : (
+        <PrimaryButton
+          title="Войти / Регистрация"
+          onPress={() =>
+            setScreen(
+              "auth"
+            )
+          }
         />
-
-        <View style={styles.nutritionPreview}>
-          <Text style={styles.nutritionPreviewTitle}>
-            Расчёт рецепта
-          </Text>
-
-          <View style={styles.nutritionPreviewGrid}>
-            <StatCard
-              label="Ккал"
-              value={Math.round(recipeFormNutrition.kcal)}
-            />
-
-            <StatCard
-              label="Белки"
-              value={`${Math.round(
-                recipeFormNutrition.protein
-              )} г`}
-            />
-
-            <StatCard
-              label="Жиры"
-              value={`${Math.round(
-                recipeFormNutrition.fat
-              )} г`}
-            />
-
-            <StatCard
-              label="Углеводы"
-              value={`${Math.round(
-                recipeFormNutrition.carbs
-              )} г`}
-            />
-          </View>
-        </View>
-      </View>
-
-      <SectionTitle title="Приготовление" />
-
-      <View style={styles.formCard}>
-        {recipeForm.steps.map((step, index) => (
-          <View
-            key={`step-editor-${index}`}
-            style={styles.stepEditorRow}
-          >
-            <View style={styles.stepEditorNumber}>
-              <Text style={styles.stepEditorNumberText}>
-                {index + 1}
-              </Text>
-            </View>
-
-            <TextInput
-              value={step}
-              onChangeText={(value) =>
-                updateRecipeStep(index, value)
-              }
-              multiline
-              placeholder={`Шаг ${index + 1}`}
-              style={styles.stepEditorInput}
-            />
-
-            <Pressable
-              onPress={() => removeRecipeStep(index)}
-              style={styles.deleteIngredientButton}
-            >
-              <Text>✕</Text>
-            </Pressable>
-          </View>
-        ))}
-
-        <SecondaryButton
-          title="+ Добавить шаг"
-          onPress={addRecipeStep}
-        />
-      </View>
-
-      <PrimaryButton
-        title={editing ? "Сохранить рецепт" : "Создать рецепт"}
-        onPress={saveRecipe}
+      )}
+      <View
+        style={
+          styles.bottomSpacer
+        }
       />
-
-      <SecondaryButton
-        title="Отмена"
-        onPress={() => setScreen("author")}
-      />
-
-      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
 
   // ============================================================
-  // SETTINGS SCREEN
-  // ============================================================
-
-  function renderSettingsScreen() {
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.scrollContent
+// PROFILE EDIT SCREEN
+// ============================================================
+function renderProfileEditScreen() {
+  const safeProfileForm =
+    profileForm &&
+    typeof profileForm === "object"
+      ? profileForm
+      : {
+          name: "",
+          username: "",
+          city: "",
+          bio: "",
+          avatar: "",
+        };
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <View
+        style={
+          styles.simpleTopBar
         }
-        showsVerticalScrollIndicator={
-          false
+      >
+        <Pressable
+          onPress={
+            goProfile
+          }
+          style={
+            styles.backButton
+          }
+        >
+          <Text
+            style={
+              styles.backButtonText
+            }
+          >
+            ‹
+          </Text>
+        </Pressable>
+        <Text
+          style={
+            styles.simpleTopTitle
+          }
+        >
+          Редактирование
+        </Text>
+        <View
+          style={{
+            width: 42,
+          }}
+        />
+      </View>
+      <View
+        style={
+          styles.editProfileAvatar
+        }
+      >
+        {safeProfileForm.avatar ? (
+          <ImageWithFallback
+            uri={
+              safeProfileForm.avatar
+            }
+            style={
+              styles.editProfileAvatarImage
+            }
+            fallback="👨‍🍳"
+          />
+        ) : (
+          <Text
+            style={{
+              fontSize: 42,
+            }}
+          >
+            👨‍🍳
+          </Text>
+        )}
+      </View>
+      <Text
+        style={
+          styles.avatarHint
+        }
+      >
+        Фото сохраняется как
+        ссылка и не пропадает
+        после обновления
+        приложения.
+      </Text>
+      <View
+        style={
+          styles.formCard
+        }
+      >
+        <FormInput
+          label="Имя"
+          value={
+            safeProfileForm.name || ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProfileForm(
+              (current) => ({
+                ...(current || {}),
+                name: value,
+              })
+            )
+          }
+          placeholder="Твоё имя"
+        />
+        <FormInput
+          label="Никнейм"
+          value={
+            safeProfileForm.username ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProfileForm(
+              (current) => ({
+                ...(current || {}),
+                username:
+                  value.replace(
+                    /\s/g,
+                    ""
+                  ),
+              })
+            )
+          }
+          placeholder="username"
+          autoCapitalize="none"
+        />
+        <FormInput
+          label="Город"
+          value={
+            safeProfileForm.city ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProfileForm(
+              (current) => ({
+                ...(current || {}),
+                city: value,
+              })
+            )
+          }
+          placeholder="Например, Алматы"
+        />
+        <FormInput
+          label="О себе"
+          value={
+            safeProfileForm.bio ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProfileForm(
+              (current) => ({
+                ...(current || {}),
+                bio: value,
+              })
+            )
+          }
+          placeholder="Расскажи немного о себе"
+          multiline
+        />
+        <FormInput
+          label="Ссылка на фото"
+          value={
+            safeProfileForm.avatar ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProfileForm(
+              (current) => ({
+                ...(current || {}),
+                avatar: value,
+              })
+            )
+          }
+          placeholder="https://..."
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+        <PrimaryButton
+          title="Сохранить профиль"
+          onPress={
+            saveProfile
+          }
+        />
+        <SecondaryButton
+          title="Отмена"
+          onPress={
+            goProfile
+          }
+        />
+      </View>
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+// ============================================================
+// AUTHOR SCREEN
+// ============================================================
+function renderAuthorScreen() {
+  if (!authUser) {
+    return (
+      <View
+        style={
+          styles.centerScreen
+        }
+      >
+        <Text
+          style={
+            styles.emptyEmoji
+          }
+        >
+          🔐
+        </Text>
+        <Text
+          style={
+            styles.emptyTitle
+          }
+        >
+          Нужен аккаунт
+        </Text>
+        <Text
+          style={
+            styles.emptyText
+          }
+        >
+          Войди в аккаунт, чтобы
+          управлять своими
+          рецептами и продуктами.
+        </Text>
+        <PrimaryButton
+          title="Войти"
+          onPress={() =>
+            setScreen(
+              "auth"
+            )
+          }
+        />
+      </View>
+    );
+  }
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const customRecipes =
+    recipesArray.filter(
+      (recipe) =>
+        Boolean(
+          recipe?.custom ||
+          recipe?.author_id
+        )
+    );
+  const customProducts =
+    productsArray.filter(
+      (product) =>
+        Boolean(
+          product?.custom ||
+          product?.author_id
+        )
+    );
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <View
+        style={
+          styles.simpleTopBar
+        }
+      >
+        <Pressable
+          onPress={
+            leaveAuthorMode
+          }
+          style={
+            styles.backButton
+          }
+        >
+          <Text
+            style={
+              styles.backButtonText
+            }
+          >
+            ‹
+          </Text>
+        </Pressable>
+        <Text
+          style={
+            styles.simpleTopTitle
+          }
+        >
+          Автор
+        </Text>
+        <Pressable
+          onPress={
+            goSettings
+          }
+          style={
+            styles.topIconButton
+          }
+        >
+          <Text>
+            ⚙️
+          </Text>
+        </Pressable>
+      </View>
+      <View
+        style={
+          styles.authorHero
         }
       >
         <View
           style={
-            styles.simpleTopBar
+            styles.authorHeroIcon
           }
         >
-          <Pressable
-            onPress={
-              goProfile
+          <Text
+            style={{
+              fontSize: 34,
+            }}
+          >
+            ✨
+          </Text>
+        </View>
+        <Text
+          style={
+            styles.authorHeroTitle
+          }
+        >
+          Авторский режим
+        </Text>
+        <Text
+          style={
+            styles.authorHeroText
+          }
+        >
+          Создавай и редактируй
+          собственные продукты и
+          рецепты. Изменения
+          сохраняются локально и
+          синхронизируются с
+          аккаунтом.
+        </Text>
+      </View>
+      <View
+        style={
+          styles.profileStats
+        }
+      >
+        <StatCard
+          label="Мои продукты"
+          value={
+            customProducts.length
+          }
+        />
+        <StatCard
+          label="Мои рецепты"
+          value={
+            customRecipes.length
+          }
+        />
+      </View>
+      <SectionTitle
+        title="Создать"
+      />
+      <View
+        style={
+          styles.authorActionGrid
+        }
+      >
+        <Pressable
+          style={
+            styles.authorActionCard
+          }
+          onPress={
+            startNewRecipe
+          }
+        >
+          <Text
+            style={
+              styles.authorActionEmoji
+            }
+          >
+            🍳
+          </Text>
+          <Text
+            style={
+              styles.authorActionTitle
+            }
+          >
+            Новый рецепт
+          </Text>
+          <Text
+            style={
+              styles.authorActionText
+            }
+          >
+            Добавить рецепт
+          </Text>
+        </Pressable>
+        <Pressable
+          style={
+            styles.authorActionCard
+          }
+          onPress={
+            startNewProduct
+          }
+        >
+          <Text
+            style={
+              styles.authorActionEmoji
+            }
+          >
+            🥕
+          </Text>
+          <Text
+            style={
+              styles.authorActionTitle
+            }
+          >
+            Новый продукт
+          </Text>
+          <Text
+            style={
+              styles.authorActionText
+            }
+          >
+            Добавить продукт
+          </Text>
+        </Pressable>
+      </View>
+      <SectionTitle
+        title="Мои рецепты"
+      />
+      {customRecipes.length > 0 ? (
+        customRecipes.map(
+          (recipe) => (
+            <View
+              key={
+                recipe.id
+              }
+              style={
+                styles.authorListCard
+              }
+            >
+              <ImageWithFallback
+                uri={
+                  recipe.image ||
+                  recipe.image_url
+                }
+                style={
+                  styles.authorListImage
+                }
+                fallback="🍽️"
+              />
+              <View
+                style={
+                  styles.authorListMain
+                }
+              >
+                <Text
+                  style={
+                    styles.authorListTitle
+                  }
+                  numberOfLines={
+                    2
+                  }
+                >
+                  {recipe.title ||
+                    recipe.name ||
+                    "Без названия"}
+                </Text>
+                <Text
+                  style={
+                    styles.authorListSubtitle
+                  }
+                >
+                  {recipe.category ||
+                    "Другое"}
+                </Text>
+                <Text
+                  style={
+                    styles.authorListKcal
+                  }
+                >
+                  {Math.round(
+                    calculateRecipeNutrition(
+                      recipe,
+                      productsArray
+                    ).kcal
+                  )}{" "}
+                  ккал
+                </Text>
+              </View>
+              <View
+                style={
+                  styles.authorListActions
+                }
+              >
+                <Pressable
+                  onPress={() =>
+                    startEditRecipe(
+                      recipe
+                    )
+                  }
+                  style={
+                    styles.authorSmallButton
+                  }
+                >
+                  <Text>
+                    ✏️
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    removeRecipe(
+                      recipe
+                    )
+                  }
+                  style={
+                    styles.authorSmallButton
+                  }
+                >
+                  <Text>
+                    🗑️
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )
+        )
+      ) : (
+        <EmptyState
+          title="Нет своих рецептов"
+          text="Создай первый рецепт."
+          button="Создать рецепт"
+          onPress={
+            startNewRecipe
+          }
+        />
+      )}
+      <SectionTitle
+        title="Мои продукты"
+      />
+      {customProducts.length > 0 ? (
+        customProducts.map(
+          (product) => (
+            <View
+              key={
+                product.id
+              }
+              style={
+                styles.authorProductCard
+              }
+            >
+              <View
+                style={
+                  styles.authorProductIcon
+                }
+              >
+                <Text
+                  style={{
+                    fontSize: 24,
+                  }}
+                >
+                  {getProductEmoji(
+                    product
+                  )}
+                </Text>
+              </View>
+              <View
+                style={
+                  styles.authorProductMain
+                }
+              >
+                <Text
+                  style={
+                    styles.authorListTitle
+                  }
+                >
+                  {
+                    product.name
+                  }
+                </Text>
+                <Text
+                  style={
+                    styles.authorListSubtitle
+                  }
+                >
+                  {Math.round(
+                    Number(
+                      product.kcal
+                    ) || 0
+                  )}{" "}
+                  ккал · Б{" "}
+                  {Number(
+                    product.protein
+                  ) || 0}{" "}
+                  · Ж{" "}
+                  {Number(
+                    product.fat
+                  ) || 0}{" "}
+                  · У{" "}
+                  {Number(
+                    product.carbs
+                  ) || 0}
+                </Text>
+              </View>
+              <View
+                style={
+                  styles.authorListActions
+                }
+              >
+                <Pressable
+                  onPress={() =>
+                    startEditProduct(
+                      product
+                    )
+                  }
+                  style={
+                    styles.authorSmallButton
+                  }
+                >
+                  <Text>
+                    ✏️
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    removeProduct(
+                      product
+                    )
+                  }
+                  style={
+                    styles.authorSmallButton
+                  }
+                >
+                  <Text>
+                    🗑️
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )
+        )
+      ) : (
+        <EmptyState
+          title="Нет своих продуктов"
+          text="Добавь продукт для использования в рецептах."
+          button="Создать продукт"
+          onPress={
+            startNewProduct
+          }
+        />
+      )}
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+
+  // ============================================================
+// PRODUCT EDITOR
+// ============================================================
+function renderAuthorProductScreen() {
+  const editing =
+    Boolean(editingProductName);
+  const safeProductForm =
+    productForm &&
+    typeof productForm === "object"
+      ? productForm
+      : {
+          name: "",
+          category: "Другое",
+          kcal: "",
+          protein: "",
+          fat: "",
+          carbs: "",
+          fiber: "",
+          image: "",
+        };
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+      keyboardShouldPersistTaps="handled"
+    >
+      <View
+        style={
+          styles.simpleTopBar
+        }
+      >
+        <Pressable
+          onPress={() =>
+            setScreen("author")
+          }
+          style={
+            styles.backButton
+          }
+        >
+          <Text
+            style={
+              styles.backButtonText
+            }
+          >
+            ‹
+          </Text>
+        </Pressable>
+        <Text
+          style={
+            styles.simpleTopTitle
+          }
+        >
+          {editing
+            ? "Изменить продукт"
+            : "Новый продукт"}
+        </Text>
+        <View
+          style={{
+            width: 42,
+          }}
+        />
+      </View>
+      <View
+        style={
+          styles.formCard
+        }
+      >
+        <FormInput
+          label="Название"
+          value={
+            safeProductForm.name ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                name: value,
+              })
+            )
+          }
+          placeholder="Например, Авокадо"
+        />
+        <FormInput
+          label="Категория"
+          value={
+            safeProductForm.category ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                category: value,
+              })
+            )
+          }
+          placeholder="Овощи"
+        />
+        <Text
+          style={
+            styles.formSectionTitle
+          }
+        >
+          КБЖУ на 100 г
+        </Text>
+        <FormInput
+          label="Калории"
+          value={
+            String(
+              safeProductForm.kcal ??
+              ""
+            )
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                kcal: value,
+              })
+            )
+          }
+          keyboardType="decimal-pad"
+          placeholder="0"
+        />
+        <FormInput
+          label="Белки"
+          value={
+            String(
+              safeProductForm.protein ??
+              ""
+            )
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                protein: value,
+              })
+            )
+          }
+          keyboardType="decimal-pad"
+          placeholder="0"
+        />
+        <FormInput
+          label="Жиры"
+          value={
+            String(
+              safeProductForm.fat ??
+              ""
+            )
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                fat: value,
+              })
+            )
+          }
+          keyboardType="decimal-pad"
+          placeholder="0"
+        />
+        <FormInput
+          label="Углеводы"
+          value={
+            String(
+              safeProductForm.carbs ??
+              ""
+            )
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                carbs: value,
+              })
+            )
+          }
+          keyboardType="decimal-pad"
+          placeholder="0"
+        />
+        <FormInput
+          label="Клетчатка"
+          value={
+            String(
+              safeProductForm.fiber ??
+              ""
+            )
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                fiber: value,
+              })
+            )
+          }
+          keyboardType="decimal-pad"
+          placeholder="0"
+        />
+        <FormInput
+          label="Фото продукта"
+          value={
+            safeProductForm.image ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setProductForm(
+              (current) => ({
+                ...(current || {}),
+                image: value,
+              })
+            )
+          }
+          placeholder="https://..."
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+        {!!safeProductForm.image && (
+          <ImageWithFallback
+            uri={
+              safeProductForm.image
             }
             style={
-              styles.backButton
+              styles.editorImagePreview
+            }
+            fallback="🥕"
+          />
+        )}
+        <PrimaryButton
+          title={
+            editing
+              ? "Сохранить продукт"
+              : "Создать продукт"
+          }
+          onPress={
+            saveProduct
+          }
+        />
+        <SecondaryButton
+          title="Отмена"
+          onPress={() =>
+            setScreen("author")
+          }
+        />
+      </View>
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+// ============================================================
+// RECIPE EDITOR
+// ============================================================
+function renderAuthorRecipeScreen() {
+  const editing =
+    Boolean(editingRecipeId);
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const safeIngredients =
+    Array.isArray(
+      recipeForm?.ingredients
+    )
+      ? recipeForm.ingredients
+      : [];
+  const safeSteps =
+    Array.isArray(
+      recipeForm?.steps
+    )
+      ? recipeForm.steps
+      : [];
+  const safeRecipeForm =
+    recipeForm &&
+    typeof recipeForm === "object"
+      ? recipeForm
+      : {
+          title: "",
+          category: "Другое",
+          description: "",
+          image: "",
+          servings: 1,
+          prepTime: 0,
+          cookTime: 0,
+          pro: false,
+        };
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+      keyboardShouldPersistTaps="handled"
+    >
+      <View
+        style={
+          styles.simpleTopBar
+        }
+      >
+        <Pressable
+          onPress={() =>
+            setScreen("author")
+          }
+          style={
+            styles.backButton
+          }
+        >
+          <Text
+            style={
+              styles.backButtonText
+            }
+          >
+            ‹
+          </Text>
+        </Pressable>
+        <Text
+          style={
+            styles.simpleTopTitle
+          }
+        >
+          {editing
+            ? "Изменить рецепт"
+            : "Новый рецепт"}
+        </Text>
+        <View
+          style={{
+            width: 42,
+          }}
+        />
+      </View>
+      <View
+        style={
+          styles.formCard
+        }
+      >
+        <FormInput
+          label="Название рецепта"
+          value={
+            safeRecipeForm.title ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setRecipeForm(
+              (current) => ({
+                ...(current || {}),
+                title: value,
+              })
+            )
+          }
+          placeholder="Например, Синабоны"
+        />
+        <FormInput
+          label="Категория"
+          value={
+            safeRecipeForm.category ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setRecipeForm(
+              (current) => ({
+                ...(current || {}),
+                category: value,
+              })
+            )
+          }
+          placeholder="Выпечка"
+        />
+        <FormInput
+          label="Описание"
+          value={
+            safeRecipeForm.description ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setRecipeForm(
+              (current) => ({
+                ...(current || {}),
+                description: value,
+              })
+            )
+          }
+          placeholder="Коротко о рецепте"
+          multiline
+        />
+        <FormInput
+          label="Фото рецепта"
+          value={
+            safeRecipeForm.image ||
+            ""
+          }
+          onChangeText={(
+            value
+          ) =>
+            setRecipeForm(
+              (current) => ({
+                ...(current || {}),
+                image: value,
+              })
+            )
+          }
+          placeholder="https://..."
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+        {!!safeRecipeForm.image && (
+          <ImageWithFallback
+            uri={
+              safeRecipeForm.image
+            }
+            style={
+              styles.editorImagePreview
+            }
+            fallback="🍳"
+          />
+        )}
+        <View
+          style={
+            styles.formTwoColumns
+          }
+        >
+          <View
+            style={
+              styles.formHalf
+            }
+          >
+            <FormInput
+              label="Порций"
+              value={String(
+                safeRecipeForm.servings ||
+                  1
+              )}
+              onChangeText={(
+                value
+              ) =>
+                setRecipeForm(
+                  (current) => ({
+                    ...(current || {}),
+                    servings:
+                      Number(value) ||
+                      1,
+                  })
+                )
+              }
+              keyboardType="numeric"
+            />
+          </View>
+          <View
+            style={
+              styles.formHalf
+            }
+          >
+            <FormInput
+              label="Подготовка, мин"
+              value={String(
+                safeRecipeForm.prepTime ||
+                  0
+              )}
+              onChangeText={(
+                value
+              ) =>
+                setRecipeForm(
+                  (current) => ({
+                    ...(current || {}),
+                    prepTime:
+                      Number(value) ||
+                      0,
+                  })
+                )
+              }
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+        <FormInput
+          label="Готовка, мин"
+          value={String(
+            safeRecipeForm.cookTime ||
+              0
+          )}
+          onChangeText={(
+            value
+          ) =>
+            setRecipeForm(
+              (current) => ({
+                ...(current || {}),
+                cookTime:
+                  Number(value) ||
+                  0,
+              })
+            )
+          }
+          keyboardType="numeric"
+        />
+        <Pressable
+          style={
+            styles.proToggle
+          }
+          onPress={() =>
+            setRecipeForm(
+              (current) => ({
+                ...(current || {}),
+                pro: !Boolean(
+                  current?.pro
+                ),
+              })
+            )
+          }
+        >
+          <View
+            style={[
+              styles.checkbox,
+              safeRecipeForm.pro &&
+                styles.checkboxActive,
+            ]}
+          >
+            {safeRecipeForm.pro && (
+              <Text
+                style={
+                  styles.checkboxCheck
+                }
+              >
+                ✓
+              </Text>
+            )}
+          </View>
+          <View
+            style={
+              styles.proToggleMain
             }
           >
             <Text
               style={
-                styles.backButtonText
+                styles.proToggleTitle
               }
             >
-              ‹
+              PRO-рецепт
             </Text>
-          </Pressable>
-
+            <Text
+              style={
+                styles.proToggleText
+              }
+            >
+              Отметить рецепт как доступный по подписке PRO
+            </Text>
+          </View>
+        </Pressable>
+      </View>
+      <SectionTitle
+        title="Ингредиенты"
+      />
+      <View
+        style={
+          styles.formCard
+        }
+      >
+        {safeIngredients.length ===
+          0 && (
           <Text
             style={
-              styles.simpleTopTitle
+              styles.mutedText
             }
           >
-            Настройки
+            Добавь продукты, которые входят в рецепт.
           </Text>
-
-          <View
-            style={{
-              width: 42,
-            }}
-          />
-        </View>
-
-        <SectionTitle
-          title="Приложение"
+        )}
+        {safeIngredients.map(
+          (
+            ingredient,
+            index
+          ) => (
+            <View
+              key={`ingredient-editor-${index}`}
+              style={
+                styles.ingredientEditorRow
+              }
+            >
+              <View
+                style={
+                  styles.ingredientEditorSelect
+                }
+              >
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  contentContainerStyle={{
+                    alignItems:
+                      "center",
+                  }}
+                >
+                  {productsArray.map(
+                    (
+                      product
+                    ) => {
+                      const active =
+                        String(
+                          ingredient?.productId ||
+                            ingredient?.product_id ||
+                            ""
+                        ) ===
+                        String(
+                          product?.id
+                        );
+                      return (
+                        <Pressable
+                          key={
+                            product.id
+                          }
+                          onPress={() =>
+                            updateRecipeIngredient(
+                              index,
+                              "productId",
+                              product.id
+                            )
+                          }
+                          style={[
+                            styles.ingredientProductChip,
+                            active &&
+                              styles.ingredientProductChipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.ingredientProductChipText,
+                              active &&
+                                styles.ingredientProductChipTextActive,
+                            ]}
+                            numberOfLines={
+                              1
+                            }
+                          >
+                            {
+                              product.name
+                            }
+                          </Text>
+                        </Pressable>
+                      );
+                    }
+                  )}
+                </ScrollView>
+              </View>
+            </View>
+          )
+        )}
+        {safeIngredients.map(
+          (
+            ingredient,
+            index
+          ) => {
+            const selectedProduct =
+              productsArray.find(
+                (
+                  product
+                ) =>
+                  String(
+                    product?.id
+                  ) ===
+                  String(
+                    ingredient?.productId ||
+                      ingredient?.product_id ||
+                      ""
+                  )
+              );
+            return (
+              <View
+                key={`ingredient-row-${index}`}
+                style={
+                  styles.ingredientWeightRow
+                }
+              >
+                <Text
+                  style={
+                    styles.ingredientWeightName
+                  }
+                  numberOfLines={
+                    1
+                  }
+                >
+                  {selectedProduct?.name ||
+                    ingredient?.product ||
+                    "Выбери продукт"}
+                </Text>
+                <TextInput
+                  value={String(
+                    ingredient?.grams ??
+                      ingredient?.amount ??
+                      0
+                  )}
+                  onChangeText={(
+                    value
+                  ) =>
+                    updateRecipeIngredient(
+                      index,
+                      "grams",
+                      value
+                    )
+                  }
+                  keyboardType="decimal-pad"
+                  style={
+                    styles.ingredientWeightInput
+                  }
+                  placeholder="г"
+                />
+                <Pressable
+                  onPress={() =>
+                    removeRecipeIngredient(
+                      index
+                    )
+                  }
+                  style={
+                    styles.deleteIngredientButton
+                  }
+                >
+                  <Text>
+                    ✕
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          }
+        )}
+        <SecondaryButton
+          title="+ Добавить ингредиент"
+          onPress={
+            addRecipeIngredient
+          }
         />
-
         <View
           style={
-            styles.settingsCard
+            styles.nutritionPreview
           }
         >
-          <View
+          <Text
             style={
-              styles.settingRow
+              styles.nutritionPreviewTitle
             }
           >
-            <View
-              style={
-                styles.settingIcon
-              }
-            >
-              <Text>
-                🔔
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.settingMain
-              }
-            >
-              <Text
-                style={
-                  styles.settingTitle
-                }
-              >
-                Уведомления
-              </Text>
-
-              <Text
-                style={
-                  styles.settingText
-                }
-              >
-                Напоминания о питании
-              </Text>
-            </View>
-
-            <Pressable
-              onPress={() =>
-                setSettings(
-                  (current) => ({
-                    ...current,
-                    notifications:
-                      !current.notifications,
-                  })
-                )
-              }
-              style={[
-                styles.switch,
-                settings.notifications &&
-                  styles.switchActive,
-              ]}
-            >
-              <View
-                style={[
-                  styles.switchThumb,
-                  settings.notifications &&
-                    styles.switchThumbActive,
-                ]}
-              />
-            </Pressable>
-          </View>
-
+            Расчёт рецепта
+          </Text>
           <View
             style={
-              styles.settingDivider
-            }
-          />
-
-          <View
-            style={
-              styles.settingRow
+              styles.nutritionPreviewGrid
             }
           >
-            <View
-              style={
-                styles.settingIcon
-              }
-            >
-              <Text>
-                📊
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.settingMain
-              }
-            >
-              <Text
-                style={
-                  styles.settingTitle
-                }
-              >
-                Показывать КБЖУ
-              </Text>
-
-              <Text
-                style={
-                  styles.settingText
-                }
-              >
-                КБЖУ отображается в
-                карточках рецептов
-              </Text>
-            </View>
-
-            <Pressable
-              onPress={() =>
-                setSettings(
-                  (current) => ({
-                    ...current,
-                    showNutrition:
-                      !current.showNutrition,
-                  })
+            <StatCard
+              label="Ккал"
+              value={Math.round(
+                Number(
+                  recipeFormNutrition?.kcal ||
+                    0
                 )
-              }
-              style={[
-                styles.switch,
-                settings.showNutrition &&
-                  styles.switchActive,
-              ]}
-            >
-              <View
-                style={[
-                  styles.switchThumb,
-                  settings.showNutrition &&
-                    styles.switchThumbActive,
-                ]}
-              />
-            </Pressable>
+              )}
+            />
+            <StatCard
+              label="Белки"
+              value={`${Math.round(
+                Number(
+                  recipeFormNutrition?.protein ||
+                    0
+                )
+              )} г`}
+            />
+            <StatCard
+              label="Жиры"
+              value={`${Math.round(
+                Number(
+                  recipeFormNutrition?.fat ||
+                    0
+                )
+              )} г`}
+            />
+            <StatCard
+              label="Углеводы"
+              value={`${Math.round(
+                Number(
+                  recipeFormNutrition?.carbs ||
+                    0
+                )
+              )} г`}
+            />
           </View>
         </View>
-
-        <SectionTitle
-          title="Данные"
-        />
-
-        <Pressable
-          style={
-            styles.settingsAction
-          }
+      </View>
+      <SectionTitle
+        title="Приготовление"
+      />
+      <View
+        style={
+          styles.formCard
+        }
+      >
+        {safeSteps.map(
+          (
+            step,
+            index
+          ) => (
+            <View
+              key={`step-editor-${index}`}
+              style={
+                styles.stepEditorRow
+              }
+            >
+              <View
+                style={
+                  styles.stepEditorNumber
+                }
+              >
+                <Text
+                  style={
+                    styles.stepEditorNumberText
+                  }
+                >
+                  {index + 1}
+                </Text>
+              </View>
+              <TextInput
+                value={String(
+                  step ?? ""
+                )}
+                onChangeText={(
+                  value
+                ) =>
+                  updateRecipeStep(
+                    index,
+                    value
+                  )
+                }
+                multiline
+                placeholder={`Шаг ${
+                  index + 1
+                }`}
+                style={
+                  styles.stepEditorInput
+                }
+              />
+              <Pressable
+                onPress={() =>
+                  removeRecipeStep(
+                    index
+                  )
+                }
+                style={
+                  styles.deleteIngredientButton
+                }
+              >
+                <Text>
+                  ✕
+                </Text>
+              </Pressable>
+            </View>
+          )
+        )}
+        <SecondaryButton
+          title="+ Добавить шаг"
           onPress={
-            resetLocalData
+            addRecipeStep
+          }
+        />
+      </View>
+      <PrimaryButton
+        title={
+          editing
+            ? "Сохранить рецепт"
+            : "Создать рецепт"
+        }
+        onPress={
+          saveRecipe
+        }
+      />
+      <SecondaryButton
+        title="Отмена"
+        onPress={() =>
+          setScreen("author")
+        }
+      />
+      <View
+        style={
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+
+  // ============================================================
+// SETTINGS SCREEN
+// ============================================================
+function renderSettingsScreen() {
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const safeSettings =
+    settings &&
+    typeof settings === "object"
+      ? settings
+      : DEFAULT_SETTINGS;
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.scrollContent
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <View
+        style={
+          styles.simpleTopBar
+        }
+      >
+        <Pressable
+          onPress={
+            goProfile
+          }
+          style={
+            styles.backButton
+          }
+        >
+          <Text
+            style={
+              styles.backButtonText
+            }
+          >
+            ‹
+          </Text>
+        </Pressable>
+        <Text
+          style={
+            styles.simpleTopTitle
+          }
+        >
+          Настройки
+        </Text>
+        <View
+          style={{
+            width: 42,
+          }}
+        />
+      </View>
+      <SectionTitle
+        title="Приложение"
+      />
+      <View
+        style={
+          styles.settingsCard
+        }
+      >
+        <View
+          style={
+            styles.settingRow
           }
         >
           <View
             style={
-              styles.settingsActionIcon
+              styles.settingIcon
             }
           >
             <Text>
-              🗑️
+              🔔
             </Text>
           </View>
-
           <View
             style={
               styles.settingMain
@@ -12599,509 +13499,605 @@ function renderAuthorRecipeScreen() {
           >
             <Text
               style={
-                styles.settingsActionTitle
+                styles.settingTitle
               }
             >
-              Сбросить локальные данные
+              Уведомления
             </Text>
-
             <Text
               style={
                 styles.settingText
               }
             >
-              Вернуть стандартные
-              продукты и рецепты
+              Напоминания о питании
             </Text>
           </View>
-
-          <Text
-            style={
-              styles.menuArrow
+          <Pressable
+            onPress={() =>
+              setSettings(
+                (current) => ({
+                  ...(current || {}),
+                  notifications:
+                    !Boolean(
+                      current?.notifications
+                    ),
+                })
+              )
             }
+            style={[
+              styles.switch,
+              safeSettings.notifications &&
+                styles.switchActive,
+            ]}
           >
-            ›
-          </Text>
-        </Pressable>
-
-        <View
-          style={
-            styles.infoCard
-          }
-        >
-          <Text
-            style={
-              styles.infoCardTitle
-            }
-          >
-            PaCook
-          </Text>
-
-          <Text
-            style={
-              styles.infoCardText
-            }
-          >
-            Рецепты:{" "}
-            {recipes.length}
-            {"\n"}
-            Продукты:{" "}
-            {products.length}
-            {"\n"}
-            Версия приложения:
-            1.0.0
-          </Text>
+            <View
+              style={[
+                styles.switchThumb,
+                safeSettings.notifications &&
+                  styles.switchThumbActive,
+              ]}
+            />
+          </Pressable>
         </View>
-
         <View
           style={
-            styles.bottomSpacer
+            styles.settingDivider
           }
         />
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // AUTH SCREEN
-  // ============================================================
-
-  function renderAuthScreen() {
-    const isSignup =
-      authMode === "signup";
-
-    return (
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={
-          styles.authContainer
+        <View
+          style={
+            styles.settingRow
+          }
+        >
+          <View
+            style={
+              styles.settingIcon
+            }
+          >
+            <Text>
+              📊
+            </Text>
+          </View>
+          <View
+            style={
+              styles.settingMain
+            }
+          >
+            <Text
+              style={
+                styles.settingTitle
+              }
+            >
+              Показывать КБЖУ
+            </Text>
+            <Text
+              style={
+                styles.settingText
+              }
+            >
+              КБЖУ отображается в
+              карточках рецептов
+            </Text>
+          </View>
+          <Pressable
+            onPress={() =>
+              setSettings(
+                (current) => ({
+                  ...(current || {}),
+                  showNutrition:
+                    !Boolean(
+                      current?.showNutrition
+                    ),
+                })
+              )
+            }
+            style={[
+              styles.switch,
+              safeSettings.showNutrition &&
+                styles.switchActive,
+            ]}
+          >
+            <View
+              style={[
+                styles.switchThumb,
+                safeSettings.showNutrition &&
+                  styles.switchThumbActive,
+              ]}
+            />
+          </Pressable>
+        </View>
+      </View>
+      <SectionTitle
+        title="Данные"
+      />
+      <Pressable
+        style={
+          styles.settingsAction
         }
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={
-          false
+        onPress={
+          resetLocalData
         }
       >
         <View
           style={
-            styles.authLogo
+            styles.settingsActionIcon
           }
         >
-          <Text
-            style={
-              styles.authLogoText
-            }
-          >
-            PaCook
-          </Text>
-
-          <Text
-            style={
-              styles.authLogoSubtitle
-            }
-          >
-            Cook smart. Eat better.
+          <Text>
+            🗑️
           </Text>
         </View>
-
         <View
           style={
-            styles.authCard
+            styles.settingMain
           }
         >
           <Text
             style={
-              styles.authTitle
+              styles.settingsActionTitle
             }
           >
-            {isSignup
-              ? "Создать аккаунт"
-              : "С возвращением"}
+            Сбросить локальные данные
           </Text>
-
           <Text
             style={
-              styles.authSubtitle
+              styles.settingText
             }
           >
-            {isSignup
-              ? "Сохрани свои рецепты и профиль"
-              : "Войди в свой PaCook"}
+            Вернуть стандартные
+            продукты и рецепты
           </Text>
-
-          {isSignup && (
-            <FormInput
-              label="Имя"
-              value={
-                authNameState
-              }
-              onChangeText={
-                setAuthNameState
-              }
-              placeholder="Твоё имя"
-            />
-          )}
-
-          <FormInput
-            label="Email"
-            value={
-              authEmailState
-            }
-            onChangeText={
-              setAuthEmailState
-            }
-            placeholder="you@example.com"
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-
-          <FormInput
-            label="Пароль"
-            value={
-              authPasswordState
-            }
-            onChangeText={
-              setAuthPasswordState
-            }
-            placeholder="Минимум 6 символов"
-            secureTextEntry
-          />
-
-          {renderAuthError()}
-
-          <PrimaryButton
-            title={
-              authLoading
-                ? "Подождите..."
-                : isSignup
-                ? "Создать аккаунт"
-                : "Войти"
-            }
-            disabled={
-              authLoading
-            }
-            onPress={
-              handleAuthSubmit
-            }
-          />
-
-          <Pressable
-            onPress={() => {
-              setAuthError("");
-
-              setAuthMode(
-                isSignup
-                  ? "login"
-                  : "signup"
-              );
-            }}
-            style={
-              styles.authSwitch
-            }
-          >
-            <Text
-              style={
-                styles.authSwitchText
-              }
-            >
-              {isSignup
-                ? "Уже есть аккаунт? Войти"
-                : "Нет аккаунта? Зарегистрироваться"}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={
-              goHome
-            }
-            style={
-              styles.authBackHome
-            }
-          >
-            <Text
-              style={
-                styles.authBackHomeText
-              }
-            >
-              Продолжить без
-              авторизации
-            </Text>
-          </Pressable>
         </View>
-
         <Text
           style={
-            styles.authFooter
+            styles.menuArrow
           }
         >
-          После входа твои авторские
-          рецепты, продукты и профиль
-          будут привязаны к аккаунту.
+          ›
         </Text>
-      </ScrollView>
-    );
-  }
-
-  // ============================================================
-  // AUTH STATE
-  // ============================================================
-
-  const authFormState =
-    useMemo(
-      () => ({
-        email:
-          authEmailState,
-        password:
-          authPasswordState,
-        name:
-          authNameState,
-      }),
-      [
-        authEmailState,
-        authPasswordState,
-        authNameState,
-      ]
-    );
-
-  // ============================================================
-  // AUTH SCREEN HELPERS
-  // ============================================================
-
-  function renderAuthError() {
-    if (!authError) {
-      return null;
-    }
-
-    return (
+      </Pressable>
       <View
         style={
-          styles.authErrorBox
+          styles.infoCard
         }
       >
         <Text
           style={
-            styles.authErrorText
+            styles.infoCardTitle
           }
         >
-          {authError}
+          PaCook
+        </Text>
+        <Text
+          style={
+            styles.infoCardText
+          }
+        >
+          Рецепты:{" "}
+          {recipesArray.length}
+          {"\n"}
+          Продукты:{" "}
+          {productsArray.length}
+          {"\n"}
+          Версия приложения:
+          1.0.0
         </Text>
       </View>
-    );
-  }
-
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
-
-  function renderBottomNavigation() {
-    const items = [
-      {
-        id: "home",
-        title: "Главная",
-        icon: "⌂",
-        onPress:
-          goHome,
-      },
-      {
-        id: "recipes",
-        title: "Рецепты",
-        icon: "🍳",
-        onPress:
-          goRecipes,
-      },
-      {
-        id: "products",
-        title: "Продукты",
-        icon: "🥕",
-        onPress:
-          goProducts,
-      },
-      {
-        id: "diary",
-        title: "Дневник",
-        icon: "📅",
-        onPress:
-          goDiary,
-      },
-      {
-        id: "profile",
-        title: "Профиль",
-        icon: "👤",
-        onPress:
-          goProfile,
-      },
-    ];
-
-    return (
       <View
         style={
-          styles.bottomNavigation
+          styles.bottomSpacer
+        }
+      />
+    </ScrollView>
+  );
+}
+
+  // ============================================================
+// AUTH SCREEN
+// ============================================================
+function renderAuthScreen() {
+  const isSignup =
+    authMode === "signup";
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={
+        styles.authContainer
+      }
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <View
+        style={
+          styles.authLogo
         }
       >
-        {items.map(
-          (item) => {
-            const active =
-              screen ===
-              item.id;
-
-            return (
-              <Pressable
-                key={
-                  item.id
-                }
-                onPress={
-                  item.onPress
-                }
-                style={
-                  styles.bottomNavItem
-                }
+        <Text
+          style={
+            styles.authLogoText
+          }
+        >
+          PaCook
+        </Text>
+        <Text
+          style={
+            styles.authLogoSubtitle
+          }
+        >
+          Cook smart. Eat better.
+        </Text>
+      </View>
+      <View
+        style={
+          styles.authCard
+        }
+      >
+        <Text
+          style={
+            styles.authTitle
+          }
+        >
+          {isSignup
+            ? "Создать аккаунт"
+            : "С возвращением"}
+        </Text>
+        <Text
+          style={
+            styles.authSubtitle
+          }
+        >
+          {isSignup
+            ? "Сохрани свои рецепты и профиль"
+            : "Войди в свой PaCook"}
+        </Text>
+        {isSignup && (
+          <FormInput
+            label="Имя"
+            value={
+              authNameState || ""
+            }
+            onChangeText={
+              setAuthNameState
+            }
+            placeholder="Твоё имя"
+          />
+        )}
+        <FormInput
+          label="Email"
+          value={
+            authEmailState || ""
+          }
+          onChangeText={
+            setAuthEmailState
+          }
+          placeholder="you@example.com"
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <FormInput
+          label="Пароль"
+          value={
+            authPasswordState || ""
+          }
+          onChangeText={
+            setAuthPasswordState
+          }
+          placeholder="Минимум 6 символов"
+          secureTextEntry
+        />
+        {renderAuthError()}
+        <PrimaryButton
+          title={
+            authLoading
+              ? "Подождите..."
+              : isSignup
+              ? "Создать аккаунт"
+              : "Войти"
+          }
+          disabled={
+            Boolean(authLoading)
+          }
+          onPress={
+            handleAuthSubmit
+          }
+        />
+        <Pressable
+          onPress={() => {
+            setAuthError("");
+            setAuthMode(
+              isSignup
+                ? "login"
+                : "signup"
+            );
+          }}
+          style={
+            styles.authSwitch
+          }
+        >
+          <Text
+            style={
+              styles.authSwitchText
+            }
+          >
+            {isSignup
+              ? "Уже есть аккаунт? Войти"
+              : "Нет аккаунта? Зарегистрироваться"}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={
+            goHome
+          }
+          style={
+            styles.authBackHome
+          }
+        >
+          <Text
+            style={
+              styles.authBackHomeText
+            }
+          >
+            Продолжить без
+            авторизации
+          </Text>
+        </Pressable>
+      </View>
+      <Text
+        style={
+          styles.authFooter
+        }
+      >
+        После входа твои авторские
+        рецепты, продукты и профиль
+        будут привязаны к аккаунту.
+      </Text>
+    </ScrollView>
+  );
+}
+// ============================================================
+// AUTH STATE
+// ============================================================
+const authFormState =
+  useMemo(
+    () => ({
+      email:
+        authEmailState || "",
+      password:
+        authPasswordState || "",
+      name:
+        authNameState || "",
+    }),
+    [
+      authEmailState,
+      authPasswordState,
+      authNameState,
+    ]
+  );
+// ============================================================
+// AUTH SCREEN HELPERS
+// ============================================================
+function renderAuthError() {
+  if (!authError) {
+    return null;
+  }
+  return (
+    <View
+      style={
+        styles.authErrorBox
+      }
+    >
+      <Text
+        style={
+          styles.authErrorText
+        }
+      >
+        {String(authError)}
+      </Text>
+    </View>
+  );
+}
+// ============================================================
+// BOTTOM NAVIGATION
+// ============================================================
+function renderBottomNavigation() {
+  const items = [
+    {
+      id: "home",
+      title: "Главная",
+      icon: "⌂",
+      onPress:
+        goHome,
+    },
+    {
+      id: "recipes",
+      title: "Рецепты",
+      icon: "🍳",
+      onPress:
+        goRecipes,
+    },
+    {
+      id: "products",
+      title: "Продукты",
+      icon: "🥕",
+      onPress:
+        goProducts,
+    },
+    {
+      id: "diary",
+      title: "Дневник",
+      icon: "📅",
+      onPress:
+        goDiary,
+    },
+    {
+      id: "profile",
+      title: "Профиль",
+      icon: "👤",
+      onPress:
+        goProfile,
+    },
+  ];
+  return (
+    <View
+      style={
+        styles.bottomNavigation
+      }
+    >
+      {items.map(
+        (item) => {
+          const active =
+            screen ===
+            item.id;
+          return (
+            <Pressable
+              key={
+                item.id
+              }
+              onPress={
+                item.onPress
+              }
+              style={
+                styles.bottomNavItem
+              }
+            >
+              <View
+                style={[
+                  styles.bottomNavIconWrap,
+                  active &&
+                    styles.bottomNavIconWrapActive,
+                ]}
               >
-                <View
-                  style={[
-                    styles.bottomNavIconWrap,
-                    active &&
-                      styles.bottomNavIconWrapActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.bottomNavIcon,
-                      active &&
-                        styles.bottomNavIconActive,
-                    ]}
-                  >
-                    {
-                      item.icon
-                    }
-                  </Text>
-                </View>
-
                 <Text
                   style={[
-                    styles.bottomNavText,
+                    styles.bottomNavIcon,
                     active &&
-                      styles.bottomNavTextActive,
+                      styles.bottomNavIconActive,
                   ]}
                 >
                   {
-                    item.title
+                    item.icon
                   }
                 </Text>
-              </Pressable>
-            );
-          }
-        )}
-      </View>
-    );
-  }
-
-  // ============================================================
-  // AUTH SCREEN SWITCH
-  // ============================================================
-
-  if (screen === "auth") {
-    return (
-      <View
-        style={
-          styles.appContainer
+              </View>
+              <Text
+                style={[
+                  styles.bottomNavText,
+                  active &&
+                    styles.bottomNavTextActive,
+                ]}
+              >
+                {
+                  item.title
+                }
+              </Text>
+            </Pressable>
+          );
         }
-      >
-        {renderAuthError()}
-        {renderAuthScreen()}
-      </View>
-    );
-  }
-
-  // ============================================================
-  // PROFILE SWITCH
-  // ============================================================
-
-  if (screen === "profile") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderProfileScreen()}
-        {renderBottomNavigation()}
-      </View>
-    );
-  }
-
-  if (screen === "profileEdit") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderProfileEditScreen()}
-      </View>
-    );
-  }
-
-  // ============================================================
-  // AUTHOR SWITCH
-  // ============================================================
-
-  if (screen === "author") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderAuthorScreen()}
-      </View>
-    );
-  }
-
-  if (screen === "authorProduct") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderAuthorProductScreen()}
-      </View>
-    );
-  }
-
-  if (screen === "authorRecipe") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderAuthorRecipeScreen()}
-      </View>
-    );
-  }
-
-  // ============================================================
-  // SETTINGS SWITCH
-  // ============================================================
-
-  if (screen === "settings") {
-    return (
-      <View
-        style={
-          styles.appContainer
-        }
-      >
-        {renderSettingsScreen()}
-      </View>
-    );
-  }
-
- // ============================================================
- // FALLBACK
- // ============================================================
-
- return (
-  <View style={styles.appContainer}>
+      )}
+    </View>
+  );
+}
+// ============================================================
+// AUTH SCREEN SWITCH
+// ============================================================
+if (screen === "auth") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderAuthScreen()}
+    </View>
+  );
+}
+// ============================================================
+// PROFILE SWITCH
+// ============================================================
+if (screen === "profile") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderProfileScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+if (screen === "profileEdit") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderProfileEditScreen()}
+    </View>
+  );
+}
+// ============================================================
+// AUTHOR SWITCH
+// ============================================================
+if (screen === "author") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderAuthorScreen()}
+    </View>
+  );
+}
+if (screen === "authorProduct") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderAuthorProductScreen()}
+    </View>
+  );
+}
+if (screen === "authorRecipe") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderAuthorRecipeScreen()}
+    </View>
+  );
+}
+// ============================================================
+// SETTINGS SWITCH
+// ============================================================
+if (screen === "settings") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderSettingsScreen()}
+    </View>
+  );
+}
+// ============================================================
+// FALLBACK
+// ============================================================
+return (
+  <View
+    style={
+      styles.appContainer
+    }
+  >
     <Text
       style={{
         fontSize: 24,
@@ -13112,7 +14108,6 @@ function renderAuthorRecipeScreen() {
     >
       PaCook запущен
     </Text>
-
     <Text
       style={{
         marginHorizontal: 30,
@@ -13123,309 +14118,374 @@ function renderAuthorRecipeScreen() {
     </Text>
   </View>
 );
-  // ============================================================
-  // AUTH ERROR
-  // ============================================================
 
-  function renderAuthError() {
-    if (!authError) {
-      return null;
-    }
-
-    return (
-      <View
+  // ============================================================
+// AUTH ERROR
+// ============================================================
+function renderAuthError() {
+  if (!authError) {
+    return null;
+  }
+  return (
+    <View
+      style={
+        styles.authErrorBox
+      }
+    >
+      <Text
         style={
-          styles.authErrorBox
+          styles.authErrorText
         }
       >
-        <Text
-          style={
-            styles.authErrorText
-          }
-        >
-          {authError}
-        </Text>
-      </View>
-    );
+        {String(authError)}
+      </Text>
+    </View>
+  );
+}
+// ============================================================
+// AUTH SUBMIT
+// ============================================================
+async function handleAuthSubmit() {
+  if (authLoading) {
+    return;
   }
-
-  // ============================================================
-  // AUTH SUBMIT
-  // ============================================================
-
-  async function handleAuthSubmit() {
-    if (authLoading) {
-      return;
-    }
-
-    setAuthError("");
-
-    const email =
-      String(
-        authEmailState || ""
-      ).trim();
-
-    const password =
-      String(
-        authPasswordState || ""
-      );
-
-    const name =
-      String(
-        authNameState || ""
-      ).trim();
-
-    if (!email) {
-      setAuthError(
-        "Введите email."
-      );
-      return;
-    }
-
-    if (!password) {
-      setAuthError(
-        "Введите пароль."
-      );
-      return;
-    }
-
+  setAuthError("");
+  const email =
+    String(
+      authEmailState || ""
+    ).trim();
+  const password =
+    String(
+      authPasswordState || ""
+    );
+  const name =
+    String(
+      authNameState || ""
+    ).trim();
+  if (!email) {
+    setAuthError(
+      "Введите email."
+    );
+    return;
+  }
+  if (!password) {
+    setAuthError(
+      "Введите пароль."
+    );
+    return;
+  }
+  if (
+    password.length < 6
+  ) {
+    setAuthError(
+      "Пароль должен содержать минимум 6 символов."
+    );
+    return;
+  }
+  if (
+    authMode === "signup" &&
+    !name
+  ) {
+    setAuthError(
+      "Введите имя."
+    );
+    return;
+  }
+  setAuthLoading(true);
+  try {
+    // ==========================================================
+    // REGISTRATION
+    // ==========================================================
     if (
-      password.length < 6
+      authMode === "signup"
     ) {
-      setAuthError(
-        "Пароль должен содержать минимум 6 символов."
-      );
-      return;
-    }
-
-    setAuthLoading(true);
-
-    try {
-      if (
-        authMode ===
-        "signup"
-      ) {
-        const {
-          data,
-          error,
-        } =
-          await supabase.auth.signUp(
-            {
-              email,
-              password,
-              options: {
-                data: {
-                  name:
-                    name ||
-                    "PaCook User",
-                },
-              },
-            }
-          );
-
-        if (error) {
-          throw error;
-        }
-
-        if (
-          data?.session
-        ) {
-          setAuthUser(
-            data.user
-          );
-
-          await AsyncStorage.setItem(
-            PACOOK_SESSION,
-            JSON.stringify(
-              data.user
-            )
-          );
-
-          setScreen(
-            "home"
-          );
-        } else {
-          setAuthError(
-            "Аккаунт создан. Проверьте почту и подтвердите регистрацию."
-          );
-
-          setAuthMode(
-            "login"
-          );
-        }
-
-        return;
-      }
-
       const {
         data,
         error,
       } =
-        await supabase.auth.signInWithPassword(
+        await supabase.auth.signUp(
           {
             email,
             password,
+            options: {
+              data: {
+                name:
+                  name ||
+                  "PaCook User",
+              },
+            },
           }
         );
-
       if (error) {
         throw error;
       }
-
+      // Если Supabase сразу вернул сессию
       if (
+        data?.session &&
         data?.user
       ) {
         setAuthUser(
           data.user
         );
-
         await AsyncStorage.setItem(
-          PACOOK_SESSION,
+          STORAGE_KEYS.session,
           JSON.stringify(
             data.user
           )
         );
-
-        setAuthEmailState(
-          ""
-        );
-
-        setAuthPasswordState(
-          ""
-        );
-
-        setAuthNameState(
-          ""
-        );
-
+        setAuthEmailState("");
+        setAuthPasswordState("");
+        setAuthNameState("");
+        setAuthError("");
         setScreen(
           "home"
         );
+      } else {
+        // Если включено подтверждение email
+        setAuthError(
+          "Аккаунт создан. Проверьте почту и подтвердите регистрацию."
+        );
+        setAuthMode(
+          "login"
+        );
       }
-    } catch (error) {
-      console.error(
-        "AUTH ERROR",
-        error
-      );
-
-      setAuthError(
-        error?.message ||
-          "Не удалось выполнить вход."
-      );
-    } finally {
-      setAuthLoading(
-        false
-      );
+      return;
     }
-  }
-
-  // ============================================================
-  // LOGOUT
-  // ============================================================
-
-  async function logoutUser() {
-    try {
-      await AsyncStorage.removeItem(
-        PACOOK_SESSION
+    // ==========================================================
+    // LOGIN
+    // ==========================================================
+    const {
+      data,
+      error,
+    } =
+      await supabase.auth.signInWithPassword(
+        {
+          email,
+          password,
+        }
       );
-    } catch (error) {
-      console.log(
-        "SESSION REMOVE ERROR",
-        error
-      );
+    if (error) {
+      throw error;
     }
-
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.log(
-        "SUPABASE LOGOUT ERROR",
-        error
+    if (
+      data?.user
+    ) {
+      setAuthUser(
+        data.user
       );
-    }
-
-    setAuthUser(
-      null
-    );
-
-    setAuthorUnlocked(
-      false
-    );
-
-    setAuthorMode(
-      false
-    );
-
-    setScreen(
-      "home"
-    );
-  }
-
-  // ============================================================
-  // PROFILE
-  // ============================================================
-
-  function startEditProfile() {
-    setProfileForm({
-      name:
-        profile?.name ||
-        authUser?.user_metadata?.name ||
-        "",
-      username:
-        profile?.username ||
-        "",
-      bio:
-        profile?.bio ||
-        "",
-      avatar:
-        profile?.avatar ||
-        "",
-      photo:
-        profile?.photo ||
-        "",
-    });
-
-    setScreen(
-      "profileEdit"
-    );
-  }
-
-  async function saveProfile() {
-    const nextProfile = {
-      ...profile,
-      ...profileForm,
-      name:
-        String(
-          profileForm.name ||
-            ""
-        ).trim() ||
-        "PaCook User",
-      updatedAt:
-        Date.now(),
-    };
-
-    setProfile(
-      nextProfile
-    );
-
-    try {
       await AsyncStorage.setItem(
-        "PACOOK_PROFILE",
+        STORAGE_KEYS.session,
         JSON.stringify(
-          nextProfile
+          data.user
         )
       );
-    } catch (error) {
-      console.log(
-        "PROFILE LOCAL SAVE ERROR",
-        error
+      setAuthEmailState("");
+      setAuthPasswordState("");
+      setAuthNameState("");
+      setAuthError("");
+      setAuthorMode(false);
+      setScreen(
+        "home"
+      );
+    } else {
+      setAuthError(
+        "Не удалось получить данные аккаунта."
       );
     }
-
+  } catch (error) {
+    console.error(
+      "AUTH ERROR",
+      error
+    );
+    const message =
+      String(
+        error?.message ||
+        error?.error_description ||
+        error ||
+        ""
+      ).trim();
     if (
-      authUser?.id
+      message.toLowerCase().includes(
+        "invalid login credentials"
+      )
     ) {
-      try {
+      setAuthError(
+        "Неверный email или пароль."
+      );
+    } else if (
+      message.toLowerCase().includes(
+        "email not confirmed"
+      )
+    ) {
+      setAuthError(
+        "Сначала подтвердите email через письмо от Supabase."
+      );
+    } else if (
+      message.toLowerCase().includes(
+        "user already registered"
+      )
+    ) {
+      setAuthError(
+        "Этот email уже зарегистрирован. Попробуйте войти."
+      );
+    } else {
+      setAuthError(
+        message ||
+          "Не удалось выполнить вход."
+      );
+    }
+  } finally {
+    setAuthLoading(
+      false
+    );
+  }
+}
+
+  // ============================================================
+// LOGOUT
+// ============================================================
+async function logoutUser() {
+  try {
+    await AsyncStorage.removeItem(
+      STORAGE_KEYS.session
+    );
+  } catch (error) {
+    console.log(
+      "SESSION REMOVE ERROR",
+      error
+    );
+  }
+  try {
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.log(
+      "SUPABASE LOGOUT ERROR",
+      error
+    );
+  }
+  setAuthUser(null);
+  setAuthorUnlocked(false);
+  setAuthorMode(false);
+  setScreen("home");
+}
+// ============================================================
+// PROFILE
+// ============================================================
+function startEditProfile() {
+  const currentProfile =
+    profile &&
+    typeof profile === "object"
+      ? profile
+      : {};
+  setProfileForm({
+    ...currentProfile,
+    name:
+      currentProfile.name ||
+      authUser?.user_metadata?.name ||
+      "",
+    username:
+      currentProfile.username ||
+      "",
+    bio:
+      currentProfile.bio ||
+      "",
+    avatar:
+      currentProfile.avatar ||
+      currentProfile.avatarUrl ||
+      "",
+    photo:
+      currentProfile.photo ||
+      "",
+    city:
+      currentProfile.city ||
+      "",
+    age:
+      currentProfile.age ||
+      "",
+    goal:
+      currentProfile.goal ||
+      "",
+  });
+  setScreen("profileEdit");
+}
+async function saveProfile() {
+  const currentProfile =
+    profile &&
+    typeof profile === "object"
+      ? profile
+      : {};
+  const currentForm =
+    profileForm &&
+    typeof profileForm === "object"
+      ? profileForm
+      : {};
+  const nextProfile = {
+    ...currentProfile,
+    ...currentForm,
+    name:
+      String(
+        currentForm.name ||
+          authUser?.user_metadata?.name ||
+          ""
+      ).trim() ||
+      "PaCook User",
+    username:
+      String(
+        currentForm.username ||
+          ""
+      ).trim(),
+    bio:
+      String(
+        currentForm.bio ||
+          ""
+      ).trim(),
+    avatar:
+      String(
+        currentForm.avatar ||
+          currentForm.avatarUrl ||
+          ""
+      ).trim(),
+    photo:
+      String(
+        currentForm.photo ||
+          ""
+      ).trim(),
+    city:
+      String(
+        currentForm.city ||
+          ""
+      ).trim(),
+    age:
+      String(
+        currentForm.age ||
+          ""
+      ).trim(),
+    goal:
+      String(
+        currentForm.goal ||
+          ""
+      ).trim(),
+    updatedAt:
+      Date.now(),
+  };
+  setProfile(nextProfile);
+  setProfileForm(nextProfile);
+  try {
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.profile,
+      JSON.stringify(
+        nextProfile
+      )
+    );
+  } catch (error) {
+    console.log(
+      "PROFILE LOCAL SAVE ERROR",
+      error
+    );
+  }
+  if (authUser?.id) {
+    try {
+      const { error } =
         await supabase
           .from("profiles")
           .upsert(
@@ -13446,6 +14506,15 @@ function renderAuthorRecipeScreen() {
               photo:
                 nextProfile.photo ||
                 null,
+              city:
+                nextProfile.city ||
+                null,
+              age:
+                nextProfile.age ||
+                null,
+              goal:
+                nextProfile.goal ||
+                null,
               updated_at:
                 new Date().toISOString(),
             },
@@ -13454,1207 +14523,1624 @@ function renderAuthorRecipeScreen() {
                 "id",
             }
           );
-      } catch (error) {
+      if (error) {
         console.log(
           "PROFILE REMOTE SAVE ERROR",
           error
         );
       }
-    }
-
-    setScreen(
-      "profile"
-    );
-  }
-
-  // ============================================================
-  // AUTHOR MODE
-  // ============================================================
-
-  function enterAuthorMode() {
-    setAuthorUnlocked(
-      true
-    );
-
-    setAuthorMode(
-      true
-    );
-
-    setScreen(
-      "author"
-    );
-  }
-
-  function leaveAuthorMode() {
-    setAuthorMode(
-      false
-    );
-
-    setAuthorUnlocked(
-      false
-    );
-
-    setScreen(
-      "profile"
-    );
-  }
-
-  // ============================================================
-  // SETTINGS
-  // ============================================================
-
-  function goSettings() {
-    setScreen(
-      "settings"
-    );
-  }
-
-  // ============================================================
-  // PRODUCT EDITING
-  // ============================================================
-
-  function startNewProduct() {
-    setEditingProductName(
-      ""
-    );
-
-    setProductForm({
-      name: "",
-      category:
-        "Другое",
-      calories: "",
-      protein: "",
-      fat: "",
-      carbs: "",
-      unit: "100 г",
-      emoji: "🥣",
-      image: "",
-    });
-
-    setScreen(
-      "authorProduct"
-    );
-  }
-
-  function startEditProduct(
-    product
-  ) {
-    if (!product) {
-      return;
-    }
-
-    setEditingProductName(
-      product.name || ""
-    );
-
-    setProductForm({
-      id:
-        product.id,
-      name:
-        product.name ||
-        "",
-      category:
-        product.category ||
-        "Другое",
-      calories:
-        String(
-          product.calories ??
-            ""
-        ),
-      protein:
-        String(
-          product.protein ??
-            ""
-        ),
-      fat:
-        String(
-          product.fat ??
-            ""
-        ),
-      carbs:
-        String(
-          product.carbs ??
-            ""
-        ),
-      unit:
-        product.unit ||
-        "100 г",
-      emoji:
-        product.emoji ||
-        "🥣",
-      image:
-        product.image ||
-        "",
-    });
-
-    setScreen(
-      "authorProduct"
-    );
-  }
-
-  async function saveProduct() {
-    const name =
-      String(
-        productForm.name ||
-          ""
-      ).trim();
-
-    if (!name) {
-      Alert.alert(
-        "Ошибка",
-        "Введите название продукта."
-      );
-      return;
-    }
-
-    const product = {
-      id:
-        productForm.id ||
-        `custom-product-${Date.now()}`,
-      name,
-      category:
-        productForm.category ||
-        "Другое",
-      calories:
-        Number(
-          productForm.calories
-        ) || 0,
-      protein:
-        Number(
-          productForm.protein
-        ) || 0,
-      fat:
-        Number(
-          productForm.fat
-        ) || 0,
-      carbs:
-        Number(
-          productForm.carbs
-        ) || 0,
-      unit:
-        productForm.unit ||
-        "100 г",
-      emoji:
-        productForm.emoji ||
-        "🥣",
-      image:
-        productForm.image ||
-        "",
-      custom:
-        true,
-      updatedAt:
-        Date.now(),
-    };
-
-    setProducts(
-      (current) => {
-        const exists =
-          current.some(
-            (item) =>
-              String(
-                item.id
-              ) ===
-              String(
-                product.id
-              )
-          );
-
-        if (exists) {
-          return current.map(
-            (item) =>
-              String(
-                item.id
-              ) ===
-              String(
-                product.id
-              )
-                ? {
-                    ...item,
-                    ...product,
-                  }
-                : item
-          );
-        }
-
-        return [
-          ...current,
-          product,
-        ];
-      }
-    );
-
-    setDeletedProducts(
-      (current) =>
-        current.filter(
-          (id) =>
-            String(id) !==
-            String(product.id)
-        )
-    );
-
-    try {
-      await AsyncStorage.setItem(
-        "PACOOK_PRODUCTS",
-        JSON.stringify(
-          products
-        )
-      );
     } catch (error) {
       console.log(
-        "PRODUCT SAVE ERROR",
+        "PROFILE REMOTE SAVE ERROR",
         error
       );
     }
-
-    setEditingProductName(
-      ""
-    );
-
-    setScreen(
-      "author"
-    );
   }
-
-  function removeProduct(
-    productId
-  ) {
-    Alert.alert(
-      "Удалить продукт?",
-      "Продукт будет скрыт из приложения.",
-      [
-        {
-          text: "Отмена",
-          style: "cancel",
-        },
-        {
-          text: "Удалить",
-          style: "destructive",
-          onPress: () => {
-            setDeletedProducts(
-              (current) => [
-                ...current,
-                productId,
-              ]
-            );
-
-            setProducts(
-              (current) =>
-                current.filter(
-                  (item) =>
-                    String(
-                      item.id
-                    ) !==
-                    String(
-                      productId
-                    )
-                )
-            );
-          },
-        },
-      ]
-    );
+  setScreen("profile");
+}
+// ============================================================
+// AUTHOR MODE
+// ============================================================
+function enterAuthorMode() {
+  if (!authUser) {
+    setScreen("auth");
+    return;
   }
-
-  // ============================================================
-  // RECIPE EDITING
-  // ============================================================
-
-  function startNewRecipe() {
-    setEditingRecipeId(
-      ""
-    );
-
-    setRecipeForm({
-      id: "",
-      title: "",
-      description: "",
-      category:
-        "Другое",
-      time: "30 мин",
-      servings: 2,
-      image: "",
-      pro: false,
-      ingredients: [],
-      steps: [""],
-    });
-
-    setScreen(
-      "authorRecipe"
-    );
+  if (authorUnlocked) {
+    setAuthorMode(true);
+    setScreen("author");
+    return;
   }
-
-  function startEditRecipe(
-    recipe
-  ) {
-    if (!recipe) {
+  setAuthorUnlocked(true);
+  setAuthorMode(true);
+  setScreen("author");
+}
+function leaveAuthorMode() {
+  setAuthorMode(false);
+  setScreen("profile");
+}
+// ============================================================
+// SETTINGS
+// ============================================================
+function goSettings() {
+  setScreen("settings");
+}
+// ============================================================
+// PRODUCT EDITING
+// ============================================================
+function startNewProduct() {
+  setEditingProductName(null);
+  setProductForm({
+    name: "",
+    category: "Другое",
+    kcal: "",
+    protein: "",
+    fat: "",
+    carbs: "",
+    fiber: "",
+    image: "",
+  });
+  setScreen("authorProduct");
+}
+function startEditProduct(product) {
+  if (!product) {
+    return;
+  }
+  setEditingProductName(
+    product.name || ""
+  );
+  setProductForm({
+    name:
+      product.name || "",
+    category:
+      product.category ||
+      "Другое",
+    kcal:
+      String(
+        product.kcal ??
+          product.calories ??
+          ""
+      ),
+    protein:
+      String(
+        product.protein ??
+          ""
+      ),
+    fat:
+      String(
+        product.fat ??
+          ""
+      ),
+    carbs:
+      String(
+        product.carbs ??
+          ""
+      ),
+    fiber:
+      String(
+        product.fiber ??
+          ""
+      ),
+    image:
+      product.image ||
+      product.image_url ||
+      "",
+  });
+  setScreen("authorProduct");
+}
+async function saveProduct() {
+  try {
+    const form =
+      productForm &&
+      typeof productForm === "object"
+        ? productForm
+        : {};
+    const name =
+      String(
+        form.name || ""
+      ).trim();
+    if (!name) {
+      if (
+        typeof window !== "undefined" &&
+        window.alert
+      ) {
+        window.alert(
+          "Введите название продукта."
+        );
+      } else {
+        Alert.alert(
+          "Ошибка",
+          "Введите название продукта."
+        );
+      }
       return;
     }
-
-    setEditingRecipeId(
-      recipe.id
-    );
-
-    setRecipeForm({
-      id:
-        recipe.id,
-      title:
-        recipe.title ||
-        "",
-      description:
-        recipe.description ||
-        "",
-      category:
-        recipe.category ||
-        "Другое",
-      time:
-        recipe.time ||
-        "30 мин",
-      servings:
-        recipe.servings ||
-        2,
-      image:
-        recipe.image ||
-        "",
-      pro:
-        Boolean(
-          recipe.pro
-        ),
-      ingredients:
-        Array.isArray(
-          recipe.ingredients
-        )
-          ? recipe.ingredients.map(
-              (item) => ({
-                ...item,
-              })
-            )
-          : [],
-      steps:
-        Array.isArray(
-          recipe.steps
-        ) &&
-        recipe.steps.length
-          ? [
-              ...recipe.steps,
-            ]
-          : [""],
-    });
-
-    setScreen(
-      "authorRecipe"
-    );
-  }
-
-  function updateRecipeIngredient(
-    index,
-    field,
-    value
-  ) {
-    setRecipeForm(
-      (current) => ({
-        ...current,
-        ingredients:
-          current.ingredients.map(
-            (
-              ingredient,
-              itemIndex
-            ) =>
-              itemIndex ===
-              index
-                ? {
-                    ...ingredient,
-                    [field]:
-                      value,
-                  }
-                : ingredient
-          ),
-      })
-    );
-  }
-
-  function removeRecipeIngredient(
-    index
-  ) {
-    setRecipeForm(
-      (current) => ({
-        ...current,
-        ingredients:
-          current.ingredients.filter(
-            (
-              _,
-              itemIndex
-            ) =>
-              itemIndex !==
-              index
-          ),
-      })
-    );
-  }
-
-  function addRecipeIngredient() {
-    const firstProduct =
-      products[0];
-
-    setRecipeForm(
-      (current) => ({
-        ...current,
-        ingredients: [
-          ...current.ingredients,
-          {
-            productId:
-              firstProduct?.id ||
-              "",
-            grams: 100,
-          },
-        ],
-      })
-    );
-  }
-
-  function updateRecipeStep(
-    index,
-    value
-  ) {
-    setRecipeForm(
-      (current) => ({
-        ...current,
-        steps:
-          current.steps.map(
-            (
-              step,
-              stepIndex
-            ) =>
-              stepIndex ===
-              index
-                ? value
-                : step
-          ),
-      })
-    );
-  }
-
-  function removeRecipeStep(
-    index
-  ) {
-    setRecipeForm(
-      (current) => ({
-        ...current,
-        steps:
-          current.steps.length >
-          1
-            ? current.steps.filter(
-                (
-                  _,
-                  stepIndex
-                ) =>
-                  stepIndex !==
-                  index
-              )
-            : [""],
-      })
-    );
-  }
-
-  function addRecipeStep() {
-    setRecipeForm(
-      (current) => ({
-        ...current,
-        steps: [
-          ...current.steps,
-          "",
-        ],
-      })
-    );
-  }
-
-  async function saveRecipe() {
-    const title =
+    const kcal =
+      Number(
+        form.kcal ??
+          form.calories ??
+          0
+      ) || 0;
+    const protein =
+      Number(
+        form.protein || 0
+      ) || 0;
+    const fat =
+      Number(
+        form.fat || 0
+      ) || 0;
+    const carbs =
+      Number(
+        form.carbs || 0
+      ) || 0;
+    const fiber =
+      Number(
+        form.fiber || 0
+      ) || 0;
+    const category =
       String(
-        recipeForm.title ||
+        form.category ||
+          "Другое"
+      ).trim();
+    const image =
+      String(
+        form.image ||
           ""
       ).trim();
-
-    if (!title) {
-      Alert.alert(
-        "Ошибка",
-        "Введите название рецепта."
+    const oldName =
+      editingProductName
+        ? String(
+            editingProductName
+          )
+        : null;
+    const productsArray =
+      ensureProductsArray(
+        products
       );
+    // Не разрешаем создать два продукта
+    // с одинаковым названием.
+    const duplicate =
+      productsArray.find(
+        (item) =>
+          String(
+            item?.name || ""
+          ).toLowerCase() ===
+            name.toLowerCase() &&
+          String(
+            item?.name || ""
+          ).toLowerCase() !==
+            String(
+              oldName || ""
+            ).toLowerCase()
+      );
+    if (duplicate) {
+      if (
+        typeof window !== "undefined" &&
+        window.alert
+      ) {
+        window.alert(
+          "Такой продукт уже существует."
+        );
+      } else {
+        Alert.alert(
+          "Ошибка",
+          "Такой продукт уже существует."
+        );
+      }
       return;
     }
-
-    const recipe = {
+    const existingProduct =
+      oldName
+        ? productsArray.find(
+            (item) =>
+              String(
+                item?.name || ""
+              ) ===
+              String(
+                oldName
+              )
+          )
+        : null;
+    const product = {
       id:
-        recipeForm.id ||
-        `custom-recipe-${Date.now()}`,
+        existingProduct?.id ||
+        form.id ||
+        `user-product-${Date.now()}`,
+      name,
+      category,
+      kcal,
+      protein,
+      fat,
+      carbs,
+      fiber,
+      image,
+      custom: true,
+      author_id:
+        authUser?.id ||
+        null,
+      updated_at:
+        new Date().toISOString(),
+    };
+    let nextProducts =
+      [...productsArray];
+    if (oldName) {
+      nextProducts =
+        nextProducts.map(
+          (item) =>
+            String(
+              item?.name || ""
+            ) ===
+            String(oldName)
+              ? product
+              : item
+        );
+    } else {
+      nextProducts.push(
+        product
+      );
+    }
+    nextProducts =
+      ensureProductsArray(
+        nextProducts
+      );
+    const nextDeletedProducts =
+      Array.isArray(
+        deletedProducts
+      )
+        ? deletedProducts.filter(
+            (item) =>
+              String(item) !==
+              String(oldName || "") &&
+              String(item) !==
+              String(product.id)
+          )
+        : [];
+    setProducts(
+      nextProducts
+    );
+    setDeletedProducts(
+      nextDeletedProducts
+    );
+    setEditingProductName(
+      null
+    );
+    setProductForm({
+      name: "",
+      category: "Другое",
+      kcal: "",
+      protein: "",
+      fat: "",
+      carbs: "",
+      fiber: "",
+      image: "",
+    });
+    await persistEverything({
+      products:
+        nextProducts,
+      deletedProducts:
+        nextDeletedProducts,
+    });
+    if (authUser) {
+      await safeSupabaseUpsert(
+        "products",
+        [
+          product,
+        ]
+      );
+    }
+    setSaving(false);
+    setScreen("author");
+  } catch (error) {
+    console.log(
+      "SAVE PRODUCT ERROR:",
+      error
+    );
+    setSaving(false);
+    if (
+      typeof window !== "undefined" &&
+      window.alert
+    ) {
+      window.alert(
+        "Не удалось сохранить продукт: " +
+          String(
+            error?.message ||
+              error
+          )
+      );
+    } else {
+      Alert.alert(
+        "Ошибка",
+        "Не удалось сохранить продукт."
+      );
+    }
+  }
+}
+async function removeProduct(
+  product
+) {
+  if (!product) {
+    return;
+  }
+  const confirmed =
+    await confirmDelete(
+      `Удалить продукт «${
+        product.name ||
+        "Продукт"
+      }»?`
+    );
+  if (!confirmed) {
+    return;
+  }
+  const productId =
+    product.id;
+  const productsArray =
+    ensureProductsArray(
+      products
+    );
+  const nextProducts =
+    productsArray.filter(
+      (item) =>
+        String(
+          item?.id
+        ) !==
+        String(
+          productId
+        )
+    );
+  const deletedArray =
+    Array.isArray(
+      deletedProducts
+    )
+      ? deletedProducts
+      : [];
+  const nextDeletedProducts =
+    [
+      ...deletedArray,
+      productId,
+    ].filter(
+      (value, index, array) =>
+        array.findIndex(
+          (item) =>
+            String(item) ===
+            String(value)
+        ) === index
+    );
+  setProducts(
+    nextProducts
+  );
+  setDeletedProducts(
+    nextDeletedProducts
+  );
+  await persistEverything({
+    products:
+      nextProducts,
+    deletedProducts:
+      nextDeletedProducts,
+  });
+  if (authUser) {
+    await safeSupabaseDelete(
+      "products",
+      productId
+    );
+  }
+  if (
+    editingProductName &&
+    String(
+      editingProductName
+    ) ===
+      String(
+        product.name
+      )
+  ) {
+    setEditingProductName(
+      null
+    );
+  }
+}
+
+  // ============================================================
+// RECIPE EDITING
+// ============================================================
+function startNewRecipe() {
+  setEditingRecipeId(null);
+  setRecipeForm({
+    title: "",
+    category: "Другое",
+    description: "",
+    image: "",
+    ingredients: [
+      {
+        product: "",
+        productId: "",
+        product_id: "",
+        grams: "",
+        amount: "",
+      },
+    ],
+    steps: [""],
+    pro: false,
+    servings: 1,
+    prepTime: 0,
+    cookTime: 0,
+  });
+  setScreen("authorRecipe");
+}
+function startEditRecipe(recipe) {
+  if (!recipe) {
+    return;
+  }
+  const ingredients =
+    Array.isArray(recipe.ingredients)
+      ? recipe.ingredients.map((item) => {
+          const productId =
+            String(
+              item?.productId ||
+                item?.product_id ||
+                ""
+            ).trim();
+          const productName =
+            String(
+              item?.product ||
+                item?.productName ||
+                item?.name ||
+                ""
+            ).trim();
+          const grams =
+            Number(
+              item?.grams ??
+                item?.amount ??
+                0
+            ) || 0;
+          const productsArray =
+            ensureProductsArray(products);
+          const selectedProduct =
+            productsArray.find(
+              (product) =>
+                String(product?.id) ===
+                String(productId)
+            );
+          const finalProductName =
+            productName ||
+            selectedProduct?.name ||
+            "";
+          return {
+            ...item,
+            product:
+              finalProductName,
+            productId:
+              productId ||
+              selectedProduct?.id ||
+              "",
+            product_id:
+              productId ||
+              selectedProduct?.id ||
+              "",
+            grams,
+            amount: grams,
+          };
+        })
+      : [];
+  setEditingRecipeId(
+    recipe.id || null
+  );
+  setRecipeForm({
+    title:
+      recipe.title ||
+      recipe.name ||
+      "",
+    description:
+      recipe.description ||
+      "",
+    category:
+      recipe.category ||
+      "Другое",
+    image:
+      recipe.image ||
+      recipe.image_url ||
+      "",
+    ingredients:
+      ingredients.length
+        ? ingredients
+        : [
+            {
+              product: "",
+              productId: "",
+              product_id: "",
+              grams: "",
+              amount: "",
+            },
+          ],
+    steps:
+      Array.isArray(recipe.steps) &&
+      recipe.steps.length
+        ? [...recipe.steps]
+        : [""],
+    pro:
+      Boolean(recipe.pro),
+    servings:
+      Number(recipe.servings) || 1,
+    prepTime:
+      Number(recipe.prepTime) || 0,
+    cookTime:
+      Number(recipe.cookTime) || 0,
+  });
+  setScreen("authorRecipe");
+}
+function updateRecipeIngredient(
+  index,
+  field,
+  value
+) {
+  setRecipeForm((current) => {
+    const ingredients =
+      Array.isArray(current?.ingredients)
+        ? [...current.ingredients]
+        : [];
+    const oldIngredient =
+      ingredients[index] || {
+        product: "",
+        productId: "",
+        product_id: "",
+        grams: 0,
+        amount: 0,
+      };
+    let nextValue = value;
+    if (
+      field === "grams" ||
+      field === "amount"
+    ) {
+      nextValue =
+        Number(value) || 0;
+    }
+    const updatedIngredient = {
+      ...oldIngredient,
+      [field]: nextValue,
+    };
+    if (
+      field === "productId" ||
+      field === "product_id"
+    ) {
+      const productsArray =
+        ensureProductsArray(products);
+      const selectedProduct =
+        productsArray.find(
+          (product) =>
+            String(product?.id) ===
+            String(nextValue)
+        );
+      if (selectedProduct) {
+        updatedIngredient.product =
+          selectedProduct.name;
+        updatedIngredient.productId =
+          selectedProduct.id;
+        updatedIngredient.product_id =
+          selectedProduct.id;
+      }
+    }
+    if (field === "product") {
+      const productsArray =
+        ensureProductsArray(products);
+      const selectedProduct =
+        productsArray.find(
+          (product) =>
+            String(product?.name) ===
+            String(nextValue)
+        );
+      if (selectedProduct) {
+        updatedIngredient.product =
+          selectedProduct.name;
+        updatedIngredient.productId =
+          selectedProduct.id;
+        updatedIngredient.product_id =
+          selectedProduct.id;
+      }
+    }
+    if (field === "grams") {
+      updatedIngredient.amount =
+        nextValue;
+    }
+    if (field === "amount") {
+      updatedIngredient.grams =
+        nextValue;
+    }
+    ingredients[index] =
+      updatedIngredient;
+    return {
+      ...(current || {}),
+      ingredients,
+    };
+  });
+}
+function removeRecipeIngredient(
+  index
+) {
+  setRecipeForm((current) => {
+    const ingredients =
+      Array.isArray(current?.ingredients)
+        ? current.ingredients
+        : [];
+    const nextIngredients =
+      ingredients.filter(
+        (_, itemIndex) =>
+          itemIndex !== index
+      );
+    return {
+      ...(current || {}),
+      ingredients:
+        nextIngredients.length
+          ? nextIngredients
+          : [
+              {
+                product: "",
+                productId: "",
+                product_id: "",
+                grams: "",
+                amount: "",
+              },
+            ],
+    };
+  });
+}
+function addRecipeIngredient() {
+  const productsArray =
+    ensureProductsArray(products);
+  const firstProduct =
+    productsArray[0] || null;
+  setRecipeForm((current) => ({
+    ...(current || {}),
+    ingredients: [
+      ...(Array.isArray(
+        current?.ingredients
+      )
+        ? current.ingredients
+        : []),
+      {
+        product:
+          firstProduct?.name || "",
+        productId:
+          firstProduct?.id || "",
+        product_id:
+          firstProduct?.id || "",
+        grams: 100,
+        amount: 100,
+      },
+    ],
+  }));
+}
+function updateRecipeStep(
+  index,
+  value
+) {
+  setRecipeForm((current) => {
+    const steps =
+      Array.isArray(current?.steps)
+        ? [...current.steps]
+        : [""];
+    steps[index] =
+      String(value ?? "");
+    return {
+      ...(current || {}),
+      steps,
+    };
+  });
+}
+function removeRecipeStep(
+  index
+) {
+  setRecipeForm((current) => {
+    const steps =
+      Array.isArray(current?.steps)
+        ? current.steps
+        : [""];
+    const nextSteps =
+      steps.filter(
+        (_, stepIndex) =>
+          stepIndex !== index
+      );
+    return {
+      ...(current || {}),
+      steps:
+        nextSteps.length
+          ? nextSteps
+          : [""],
+    };
+  });
+}
+function addRecipeStep() {
+  setRecipeForm((current) => ({
+    ...(current || {}),
+    steps: [
+      ...(Array.isArray(
+        current?.steps
+      )
+        ? current.steps
+        : []),
+      "",
+    ],
+  }));
+}
+async function saveRecipe() {
+  try {
+    const form =
+      recipeForm &&
+      typeof recipeForm === "object"
+        ? recipeForm
+        : {};
+    const title =
+      String(
+        form.title || ""
+      ).trim();
+    if (!title) {
+      if (
+        typeof window !== "undefined" &&
+        window.alert
+      ) {
+        window.alert(
+          "Введите название рецепта."
+        );
+      } else {
+        Alert.alert(
+          "Ошибка",
+          "Введите название рецепта."
+        );
+      }
+      return;
+    }
+    const productsArray =
+      ensureProductsArray(products);
+    const recipesArray =
+      Array.isArray(recipes)
+        ? normalizeRecipes(recipes)
+        : [];
+    const recipeId =
+      editingRecipeId ||
+      form.id ||
+      `user-recipe-${Date.now()}`;
+    const existingRecipe =
+      recipesArray.find(
+        (item) =>
+          String(item?.id) ===
+          String(recipeId)
+      ) || null;
+    const ingredients =
+      Array.isArray(
+        form.ingredients
+      )
+        ? form.ingredients
+            .map((item) => {
+              const productId =
+                String(
+                  item?.productId ||
+                    item?.product_id ||
+                    ""
+                ).trim();
+              const productName =
+                String(
+                  item?.product ||
+                    item?.productName ||
+                    item?.name ||
+                    ""
+                ).trim();
+              const grams =
+                Number(
+                  item?.grams ??
+                    item?.amount ??
+                    0
+                ) || 0;
+              const foundProduct =
+                productId
+                  ? productsArray.find(
+                      (product) =>
+                        String(
+                          product?.id
+                        ) ===
+                        String(
+                          productId
+                        )
+                    )
+                  : null;
+              const foundByName =
+                !foundProduct &&
+                productName
+                  ? productsArray.find(
+                      (product) =>
+                        String(
+                          product?.name
+                        ) ===
+                        String(
+                          productName
+                        )
+                    )
+                  : null;
+              const finalProduct =
+                foundProduct ||
+                foundByName ||
+                null;
+              const finalProductName =
+                finalProduct?.name ||
+                productName ||
+                "";
+              const finalProductId =
+                finalProduct?.id ||
+                productId ||
+                "";
+              return {
+                product:
+                  finalProductName,
+                productId:
+                  finalProductId,
+                product_id:
+                  finalProductId,
+                grams,
+                amount: grams,
+              };
+            })
+            .filter(
+              (item) =>
+                item.product &&
+                item.grams > 0
+            )
+        : [];
+    const steps =
+      Array.isArray(form.steps)
+        ? form.steps
+            .map(
+              (step) =>
+                String(
+                  step || ""
+                ).trim()
+            )
+            .filter(Boolean)
+        : [];
+    const recipe = {
+      ...(existingRecipe || {}),
+      id:
+        recipeId,
       title,
+      name:
+        title,
       description:
-        recipeForm.description ||
-        "",
+        String(
+          form.description || ""
+        ).trim(),
       category:
-        recipeForm.category ||
-        "Другое",
-      time:
-        recipeForm.time ||
-        "30 мин",
+        String(
+          form.category ||
+            "Другое"
+        ).trim(),
+      image:
+        String(
+          form.image || ""
+        ).trim(),
+      image_url:
+        String(
+          form.image || ""
+        ).trim(),
+      ingredients,
+      steps,
+      pro:
+        Boolean(form.pro),
       servings:
         Number(
-          recipeForm.servings
-        ) || 2,
-      image:
-        recipeForm.image ||
-        "",
-      pro:
-        Boolean(
-          recipeForm.pro
-        ),
-      ingredients:
-        Array.isArray(
-          recipeForm.ingredients
-        )
-          ? recipeForm.ingredients
-              .filter(
-                (item) =>
-                  item &&
-                  item.productId
-              )
-              .map(
-                (item) => ({
-                  productId:
-                    item.productId,
-                  grams:
-                    Number(
-                      item.grams
-                    ) || 0,
-                })
-              )
-          : [],
-      steps:
-        Array.isArray(
-          recipeForm.steps
-        )
-          ? recipeForm.steps
-              .map(
-                (step) =>
-                  String(
-                    step || ""
-                  ).trim()
-              )
-              .filter(Boolean)
-          : [],
-      custom: true,
-      updatedAt:
-        Date.now(),
+          form.servings
+        ) || 1,
+      prepTime:
+        Number(
+          form.prepTime
+        ) || 0,
+      cookTime:
+        Number(
+          form.cookTime
+        ) || 0,
+      custom:
+        true,
+      author_id:
+        authUser?.id ||
+        existingRecipe?.author_id ||
+        null,
+      updated_at:
+        new Date().toISOString(),
     };
-
-    setRecipes(
-      (current) => {
-        const exists =
-          current.some(
-            (item) =>
-              String(
-                item.id
-              ) ===
-              String(
-                recipe.id
-              )
-          );
-
-        if (exists) {
-          return current.map(
-            (item) =>
-              String(
-                item.id
-              ) ===
-              String(
-                recipe.id
-              )
-                ? {
-                    ...item,
-                    ...recipe,
-                  }
-                : item
-          );
-        }
-
-        return [
-          ...current,
-          recipe,
-        ];
-      }
-    );
-
-    setDeletedRecipes(
-      (current) =>
-        current.filter(
-          (id) =>
-            String(id) !==
-            String(recipe.id)
+    const recipesWithoutCurrent =
+      recipesArray.filter(
+        (item) =>
+          String(item?.id) !==
+          String(recipeId)
+      );
+    const nextRecipes =
+      mergeRecipes(
+        recipesWithoutCurrent,
+        [recipe],
+        []
+      );
+    const nextDeletedRecipes =
+      (
+        Array.isArray(
+          deletedRecipes
         )
+          ? deletedRecipes
+          : []
+      ).filter(
+        (item) =>
+          String(item) !==
+          String(recipeId)
+      );
+    const safeNextRecipes =
+      Array.isArray(nextRecipes)
+        ? nextRecipes
+        : recipesArray;
+    setRecipes(
+      safeNextRecipes
     );
-
-    setEditingRecipeId(
-      ""
+    setDeletedRecipes(
+      nextDeletedRecipes
     );
-
-    setScreen(
-      "author"
-    );
-  }
-
-  function removeRecipe(
-    recipeId
-  ) {
-    Alert.alert(
-      "Удалить рецепт?",
-      "Рецепт будет удалён из каталога.",
-      [
+    setEditingRecipeId(null);
+    setRecipeForm({
+      title: "",
+      category: "Другое",
+      description: "",
+      image: "",
+      ingredients: [
         {
-          text: "Отмена",
-          style: "cancel",
+          product: "",
+          productId: "",
+          product_id: "",
+          grams: "",
+          amount: "",
         },
-        {
-          text: "Удалить",
-          style: "destructive",
-          onPress: () => {
-            setDeletedRecipes(
-              (current) => [
-                ...current,
-                recipeId,
-              ]
-            );
-
-            setRecipes(
-              (current) =>
-                current.filter(
-                  (item) =>
-                    String(
-                      item.id
-                    ) !==
-                    String(
-                      recipeId
-                    )
-                )
-            );
+      ],
+      steps: [""],
+      pro: false,
+      servings: 1,
+      prepTime: 0,
+      cookTime: 0,
+    });
+    await persistEverything({
+      recipes:
+        safeNextRecipes,
+      deletedRecipes:
+        nextDeletedRecipes,
+    });
+    if (authUser) {
+      await safeSupabaseUpsert(
+        "recipes",
+        [
+          {
+            ...recipe,
+            user_id:
+              authUser.id,
           },
-        },
-      ]
+        ]
+      );
+    }
+    setSaving(false);
+    setScreen("author");
+  } catch (error) {
+    console.log(
+      "SAVE RECIPE ERROR:",
+      error
+    );
+    setSaving(false);
+    if (
+      typeof window !== "undefined" &&
+      window.alert
+    ) {
+      window.alert(
+        "Не удалось сохранить рецепт: " +
+          String(
+            error?.message ||
+              error
+          )
+      );
+    } else {
+      Alert.alert(
+        "Ошибка",
+        "Не удалось сохранить рецепт."
+      );
+    }
+  }
+}
+async function removeRecipe(
+  recipe
+) {
+  if (!recipe) {
+    return;
+  }
+  const recipeId =
+    recipe.id;
+  const title =
+    recipe.title ||
+    recipe.name ||
+    "Рецепт";
+  const confirmed =
+    await confirmDelete(
+      `Удалить рецепт «${title}»?`
+    );
+  if (!confirmed) {
+    return;
+  }
+  const recipesArray =
+    Array.isArray(recipes)
+      ? recipes
+      : [];
+  const nextRecipes =
+    recipesArray.filter(
+      (item) =>
+        String(item?.id) !==
+        String(recipeId)
+    );
+  const deletedArray =
+    Array.isArray(
+      deletedRecipes
+    )
+      ? deletedRecipes
+      : [];
+  const nextDeletedRecipes =
+    [
+      ...deletedArray,
+      recipeId,
+    ].filter(
+      (value, index, array) =>
+        array.findIndex(
+          (item) =>
+            String(item) ===
+            String(value)
+        ) === index
+    );
+  const favoritesArray =
+    Array.isArray(
+      favorites
+    )
+      ? favorites
+      : [];
+  const nextFavorites =
+    favoritesArray.filter(
+      (id) =>
+        String(id) !==
+        String(recipeId)
+    );
+  setRecipes(
+    nextRecipes
+  );
+  setDeletedRecipes(
+    nextDeletedRecipes
+  );
+  setFavorites(
+    nextFavorites
+  );
+  await persistEverything({
+    recipes:
+      nextRecipes,
+    deletedRecipes:
+      nextDeletedRecipes,
+    favorites:
+      nextFavorites,
+  });
+  if (authUser) {
+    await safeSupabaseDelete(
+      "recipes",
+      recipeId
     );
   }
-
-  // ============================================================
-  // LOCAL RESET
-  // ============================================================
-
-  async function resetLocalData() {
-    Alert.alert(
-      "Сбросить данные?",
-      "Будут удалены созданные продукты, рецепты, дневник и локальные настройки.",
-      [
-        {
-          text: "Отмена",
-          style: "cancel",
-        },
-        {
-          text: "Сбросить",
-          style: "destructive",
-          onPress:
-            async () => {
-              try {
-                await AsyncStorage.multiRemove(
-                  [
-                    "PACOOK_DATA",
-                    "PACOOK_PRODUCTS",
-                    "PACOOK_RECIPES",
-                    "PACOOK_PROFILE",
-                    "PACOOK_SETTINGS",
-                  ]
-                );
-              } catch (
-                error
-              ) {
-                console.log(
-                  "RESET ERROR",
-                  error
-                );
-              }
-
-              setProducts(
-                ALL_INITIAL_PRODUCTS
-              );
-
-              setRecipes(
-                INITIAL_RECIPES
-              );
-
-              setFavorites(
-                []
-              );
-
-              setDiary(
-                []
-              );
-
-              setDeletedProducts(
-                []
-              );
-
-              setDeletedRecipes(
-                []
-              );
-
-              setProfile({
-                name:
-                  authUser
-                    ?.user_metadata
-                    ?.name ||
-                  "PaCook User",
-                username:
-                  "",
-                bio:
-                  "",
-                avatar:
-                  "👨‍🍳",
-                photo:
-                  "",
-              });
-
-              setScreen(
-                "home"
-              );
-            },
-        },
-      ]
-    );
-  }
-
-  // ============================================================
-  // AUTH SCREEN
-  // ============================================================
-
-  function renderAuthScreen() {
-    const isSignup =
-      authMode ===
-      "signup";
-
-    return (
-      <SafeAreaView
-        style={
-          styles.safe
-        }
-      >
-        <ScrollView
-          contentContainerStyle={
-            styles.authContainer
-          }
-          keyboardShouldPersistTaps="handled"
-        >
-          <View
-            style={
-              styles.authLogo
-            }
-          >
-            <Text
-              style={
-                styles.authLogoEmoji
-              }
-            >
-              👨‍🍳
-            </Text>
-          </View>
-
-          <Text
-            style={
-              styles.authTitle
-            }
-          >
-            PaCook
-          </Text>
-
-          <Text
-            style={
-              styles.authSubtitle
-            }
-          >
-            Cook smart. Eat better.
-          </Text>
-
-          <View
-            style={
-              styles.authCard
-            }
-          >
-            <Text
-              style={
-                styles.authCardTitle
-              }
-            >
-              {isSignup
-                ? "Создать аккаунт"
-                : "Войти в аккаунт"}
-            </Text>
-
-            {isSignup && (
-              <FormInput
-                label="Имя"
-                value={
-                  authNameState
-                }
-                onChangeText={
-                  setAuthNameState
-                }
-                placeholder="Твоё имя"
-              />
-            )}
-
-            <FormInput
-              label="Email"
-              value={
-                authEmailState
-              }
-              onChangeText={
-                setAuthEmailState
-              }
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <FormInput
-              label="Пароль"
-              value={
-                authPasswordState
-              }
-              onChangeText={
-                setAuthPasswordState
-              }
-              placeholder="Минимум 6 символов"
-              secureTextEntry
-            />
-
-            {renderAuthError()}
-
-            <PrimaryButton
-              title={
-                authLoading
-                  ? "Загрузка..."
-                  : isSignup
-                  ? "Создать аккаунт"
-                  : "Войти"
-              }
-              onPress={
-                handleAuthSubmit
-              }
-              disabled={
-                authLoading
-              }
-            />
-
-            <TouchableOpacity
-              style={
-                styles.authSwitch
-              }
-              onPress={() => {
-                setAuthError(
-                  ""
-                );
-
-                setAuthMode(
-                  isSignup
-                    ? "login"
-                    : "signup"
-                );
-              }}
-            >
-              <Text
-                style={
-                  styles.authSwitchText
-                }
-              >
-                {isSignup
-                  ? "Уже есть аккаунт? Войти"
-                  : "Нет аккаунта? Зарегистрироваться"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-  // ============================================================
-  // BOTTOM NAVIGATION
-  // ============================================================
-
-  function renderBottomNavigation() {
-    const items = [
-      {
-        id: "home",
-        icon: "⌂",
-        title: "Главная",
-      },
-      {
-        id: "recipes",
-        icon: "🍽️",
-        title: "Рецепты",
-      },
-      {
-        id: "products",
-        icon: "🥕",
-        title: "Продукты",
-      },
-      {
-        id: "diary",
-        icon: "📅",
-        title: "Дневник",
-      },
-      {
-        id: "profile",
-        icon: "👤",
-        title: "Профиль",
-      },
-    ];
-
-    return (
-      <View
-        style={
-          styles.bottomNavigation
-        }
-      >
-        {items.map(
-          (item) => {
-            const active =
-              screen === item.id;
-
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() =>
-                  setScreen(
-                    item.id
-                  )
-                }
-                style={[
-                  styles.bottomNavItem,
-                  active &&
-                    styles.bottomNavItemActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.bottomNavIcon,
-                    active &&
-                      styles.bottomNavIconActive,
-                  ]}
-                >
-                  {item.icon}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.bottomNavText,
-                    active &&
-                      styles.bottomNavTextActive,
-                  ]}
-                >
-                  {item.title}
-                </Text>
-              </Pressable>
-            );
-          }
-        )}
-      </View>
-    );
-  }
-
-  // ============================================================
-  // MAIN SCREEN SWITCH
-  // ============================================================
-
   if (
-    !authChecked ||
-    loadingData
+    String(selectedRecipeId) ===
+    String(recipeId)
   ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.loadingScreen
+    setSelectedRecipeId(
+      null
+    );
+  }
+  if (
+    String(editingRecipeId) ===
+    String(recipeId)
+  ) {
+    setEditingRecipeId(
+      null
+    );
+  }
+}
+// ============================================================
+// LOCAL RESET
+// ============================================================
+async function resetLocalData() {
+  const confirmed =
+    await confirmDelete(
+      "Сбросить локальные данные PaCook? Авторские изменения, избранное и дневник на этом устройстве будут удалены."
+    );
+  if (!confirmed) {
+    return;
+  }
+  try {
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.data,
+      STORAGE_KEYS.profile,
+      STORAGE_KEYS.settings,
+      // Удаляем и старые ключи,
+      // которые могли остаться от предыдущей версии.
+      "PACOOK_PRODUCTS",
+      "PACOOK_RECIPES",
+      "PACOOK_PROFILE",
+      "PACOOK_SETTINGS",
+    ]);
+  } catch (error) {
+    console.log(
+      "RESET ERROR",
+      error
+    );
+  }
+  const resetProducts =
+    ensureProductsArray(
+      ALL_INITIAL_PRODUCTS
+    );
+  const resetRecipes =
+    normalizeRecipes(
+      INITIAL_RECIPES
+    );
+  setProducts(
+    resetProducts
+  );
+  setRecipes(
+    resetRecipes
+  );
+  setFavorites([]);
+  setDiary([]);
+  setDeletedProducts([]);
+  setDeletedRecipes([]);
+  const resetProfile = {
+    name:
+      authUser?.user_metadata?.name ||
+      "PaCook User",
+    username:
+      "",
+    bio:
+      "",
+    avatar:
+      "",
+    photo:
+      "",
+    avatarUrl:
+      "",
+    city:
+      "",
+    age:
+      "",
+    goal:
+      "",
+  };
+  setProfile(
+    resetProfile
+  );
+  setProfileForm(
+    resetProfile
+  );
+  const resetSettings = {
+    ...DEFAULT_SETTINGS,
+    diaryTargets:
+      {},
+  };
+  setSettings(
+    resetSettings
+  );
+  setDiaryTarget(
+    "2000"
+  );
+  setEditingProductName(
+    null
+  );
+  setEditingRecipeId(
+    null
+  );
+  setEditingDiaryId(
+    null
+  );
+  setDiaryRecipeId(
+    ""
+  );
+  setDiaryTime(
+    ""
+  );
+  setAuthorMode(
+    false
+  );
+  setScreen(
+    "home"
+  );
+}
+
+  // ============================================================
+// AUTH SCREEN
+// ============================================================
+function renderAuthScreen() {
+  const isSignup =
+    authMode === "signup";
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      <ScrollView
+        contentContainerStyle={
+          styles.authContainer
         }
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View
-          style={
-            styles.loadingLogo
-          }
+          style={styles.authLogo}
         >
           <Text
             style={
-              styles.loadingEmoji
+              styles.authLogoEmoji
             }
           >
             👨‍🍳
           </Text>
-
-          <Text
-            style={
-              styles.loadingTitle
-            }
-          >
-            PaCook
-          </Text>
-
-          <Text
-            style={
-              styles.loadingText
-            }
-          >
-            Загружаем приложение...
-          </Text>
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (
-    screen ===
-    "auth"
-  ) {
-    return renderAuthScreen();
-  }
-
-  if (
-    screen ===
-    "profile"
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.safe
-        }
-      >
-        {renderProfileScreen()}
-        {renderBottomNavigation()}
-      </SafeAreaView>
-    );
-  }
-
-  if (
-    screen ===
-    "profileEdit"
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.safe
-        }
-      >
-        {renderProfileEditScreen()}
-      </SafeAreaView>
-    );
-  }
-
-  if (
-    screen ===
-    "author"
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.safe
-        }
-      >
-        {renderAuthorScreen()}
-      </SafeAreaView>
-    );
-  }
-
-  if (
-    screen ===
-    "authorProduct"
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.safe
-        }
-      >
-        {renderAuthorProductScreen()}
-      </SafeAreaView>
-    );
-  }
-
-  if (
-    screen ===
-    "authorRecipe"
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.safe
-        }
-      >
-        {renderAuthorRecipeScreen()}
-      </SafeAreaView>
-    );
-  }
-
-  if (
-    screen ===
-    "settings"
-  ) {
-    return (
-      <SafeAreaView
-        style={
-          styles.safe
-        }
-      >
-        {renderSettingsScreen()}
-      </SafeAreaView>
-    );
-  }
-
-  // ============================================================
-  // DEFAULT APP
-  // ============================================================
-
+        <Text
+          style={styles.authTitle}
+        >
+          PaCook
+        </Text>
+        <Text
+          style={
+            styles.authSubtitle
+          }
+        >
+          Cook smart. Eat better.
+        </Text>
+        <View
+          style={styles.authCard}
+        >
+          <Text
+            style={
+              styles.authCardTitle
+            }
+          >
+            {isSignup
+              ? "Создать аккаунт"
+              : "Войти в аккаунт"}
+          </Text>
+          {isSignup && (
+            <FormInput
+              label="Имя"
+              value={
+                String(
+                  authNameState || ""
+                )
+              }
+              onChangeText={
+                setAuthNameState
+              }
+              placeholder="Твоё имя"
+              autoCapitalize="words"
+            />
+          )}
+          <FormInput
+            label="Email"
+            value={
+              String(
+                authEmailState || ""
+              )
+            }
+            onChangeText={
+              setAuthEmailState
+            }
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <FormInput
+            label="Пароль"
+            value={
+              String(
+                authPasswordState || ""
+              )
+            }
+            onChangeText={
+              setAuthPasswordState
+            }
+            placeholder="Минимум 6 символов"
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {renderAuthError()}
+          <PrimaryButton
+            title={
+              authLoading
+                ? "Загрузка..."
+                : isSignup
+                ? "Создать аккаунт"
+                : "Войти"
+            }
+            onPress={
+              handleAuthSubmit
+            }
+            disabled={
+              authLoading
+            }
+          />
+          <TouchableOpacity
+            style={
+              styles.authSwitch
+            }
+            activeOpacity={0.7}
+            onPress={() => {
+              if (authLoading) {
+                return;
+              }
+              setAuthError("");
+              setAuthMode(
+                isSignup
+                  ? "login"
+                  : "signup"
+              );
+            }}
+          >
+            <Text
+              style={
+                styles.authSwitchText
+              }
+            >
+              {isSignup
+                ? "Уже есть аккаунт? Войти"
+                : "Нет аккаунта? Зарегистрироваться"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+// ============================================================
+// BOTTOM NAVIGATION
+// ============================================================
+function renderBottomNavigation() {
+  const items = [
+    {
+      id: "home",
+      icon: "⌂",
+      title: "Главная",
+    },
+    {
+      id: "recipes",
+      icon: "🍽️",
+      title: "Рецепты",
+    },
+    {
+      id: "products",
+      icon: "🥕",
+      title: "Продукты",
+    },
+    {
+      id: "diary",
+      icon: "📅",
+      title: "Дневник",
+    },
+    {
+      id: "profile",
+      icon: "👤",
+      title: "Профиль",
+    },
+  ];
+  return (
+    <View
+      style={
+        styles.bottomNavigation
+      }
+    >
+      {items.map((item) => {
+        const active =
+          screen === item.id;
+        return (
+          <Pressable
+            key={item.id}
+            onPress={() => {
+              setScreen(
+                item.id
+              );
+            }}
+            style={[
+              styles.bottomNavItem,
+              active &&
+                styles.bottomNavItemActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.bottomNavIcon,
+                active &&
+                  styles.bottomNavIconActive,
+              ]}
+            >
+              {item.icon}
+            </Text>
+            <Text
+              style={[
+                styles.bottomNavText,
+                active &&
+                  styles.bottomNavTextActive,
+              ]}
+            >
+              {item.title}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+// ============================================================
+// MAIN SCREEN SWITCH
+// ============================================================
+if (
+  !authChecked ||
+  loadingData
+) {
   return (
     <SafeAreaView
       style={
-        styles.safe
+        styles.loadingScreen
       }
     >
       <View
         style={
-          styles.appContainer
+          styles.loadingLogo
         }
       >
-        {screen ===
-          "recipes" &&
-          renderRecipesScreen()}
-
-        {screen ===
-          "products" &&
-          renderProductsScreen()}
-
-        {screen ===
-          "recipeDetail" &&
-          renderRecipeDetailScreen()}
-
-        {screen ===
-          "diary" &&
-          renderDiaryScreen()}
-
-        {screen ===
-          "home" &&
-          renderHomeScreen()}
-
-        {renderBottomNavigation()}
+        <Text
+          style={
+            styles.loadingEmoji
+          }
+        >
+          👨‍🍳
+        </Text>
+        <Text
+          style={
+            styles.loadingTitle
+          }
+        >
+          PaCook
+        </Text>
+        <Text
+          style={
+            styles.loadingText
+          }
+        >
+          Загружаем приложение...
+        </Text>
       </View>
     </SafeAreaView>
   );
 }
+// ============================================================
+// AUTH
+// ============================================================
+if (
+  screen === "auth"
+) {
+  return renderAuthScreen();
+}
+// ============================================================
+// PROFILE
+// ============================================================
+if (
+  screen === "profile"
+) {
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      {renderProfileScreen()}
+      {renderBottomNavigation()}
+    </SafeAreaView>
+  );
+}
+// ============================================================
+// PROFILE EDIT
+// ============================================================
+if (
+  screen === "profileEdit"
+) {
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      {renderProfileEditScreen()}
+    </SafeAreaView>
+  );
+}
+// ============================================================
+// AUTHOR
+// ============================================================
+if (
+  screen === "author"
+) {
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      {renderAuthorScreen()}
+    </SafeAreaView>
+  );
+}
+// ============================================================
+// AUTHOR PRODUCT
+// ============================================================
+if (
+  screen === "authorProduct"
+) {
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      {renderAuthorProductScreen()}
+    </SafeAreaView>
+  );
+}
+// ============================================================
+// AUTHOR RECIPE
+// ============================================================
+if (
+  screen === "authorRecipe"
+) {
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      {renderAuthorRecipeScreen()}
+    </SafeAreaView>
+  );
+}
+// ============================================================
+// SETTINGS
+// ============================================================
+if (
+  screen === "settings"
+) {
+  return (
+    <SafeAreaView
+      style={styles.safe}
+    >
+      {renderSettingsScreen()}
+    </SafeAreaView>
+  );
+}
+
+  // ============================================================
+// DEFAULT APP
+// ============================================================
+return (
+  <SafeAreaView
+    style={styles.safe}
+  >
+    <View
+      style={styles.appContainer}
+    >
+      {screen === "home" &&
+        renderHomeScreen()}
+      {screen === "recipes" &&
+        renderRecipesScreen()}
+      {screen === "products" &&
+        renderProductsScreen()}
+      {screen === "recipe" &&
+        renderRecipeDetailScreen()}
+      {screen === "recipeDetail" &&
+        renderRecipeDetailScreen()}
+      {screen === "favorites" &&
+        renderFavoritesScreen()}
+      {screen === "diary" &&
+        renderDiaryScreen()}
+      {renderBottomNavigation()}
+    </View>
+  </SafeAreaView>
+);
+
 
 // ============================================================
 // STYLES
 // ============================================================
-
 const styles =
   StyleSheet.create({
     safe: {
@@ -14662,29 +16148,24 @@ const styles =
       backgroundColor:
         "#F7F4EC",
     },
-
     screen: {
       flex: 1,
       backgroundColor:
         "#F7F4EC",
     },
-
     appContainer: {
       flex: 1,
       backgroundColor:
         "#F7F4EC",
     },
-
     scrollContent: {
       paddingHorizontal: 18,
       paddingTop: 18,
       paddingBottom: 120,
     },
-
     bottomSpacer: {
       height: 40,
     },
-
     loadingScreen: {
       flex: 1,
       backgroundColor:
@@ -14693,29 +16174,24 @@ const styles =
       justifyContent:
         "center",
     },
-
     loadingLogo: {
       alignItems: "center",
     },
-
     loadingEmoji: {
       fontSize: 58,
       marginBottom: 12,
     },
-
     loadingTitle: {
       fontSize: 32,
       fontWeight: "800",
       color: "#345C48",
       letterSpacing: -1,
     },
-
     loadingText: {
       marginTop: 8,
       fontSize: 14,
       color: "#7A817C",
     },
-
     simpleTopBar: {
       height: 58,
       flexDirection:
@@ -14726,13 +16202,11 @@ const styles =
         "space-between",
       marginBottom: 14,
     },
-
     simpleTopTitle: {
       fontSize: 22,
       fontWeight: "800",
       color: "#1D2922",
     },
-
     backButton: {
       width: 42,
       height: 42,
@@ -14746,18 +16220,15 @@ const styles =
       borderColor:
         "#E6E1D6",
     },
-
     backButtonText: {
       fontSize: 30,
       lineHeight: 32,
       color: "#345C48",
       marginTop: -2,
     },
-
     // ----------------------------------------------------------
     // AUTH
     // ----------------------------------------------------------
-
     authContainer: {
       flexGrow: 1,
       paddingHorizontal: 22,
@@ -14766,25 +16237,26 @@ const styles =
       justifyContent:
         "center",
     },
-
     authLogo: {
       alignItems: "center",
       marginBottom: 28,
     },
-
+    authLogoEmoji: {
+      fontSize: 58,
+      lineHeight: 64,
+      textAlign: "center",
+    },
     authLogoText: {
       fontSize: 38,
       fontWeight: "900",
       color: "#345C48",
       letterSpacing: -1.5,
     },
-
     authLogoSubtitle: {
       marginTop: 5,
       color: "#7A817C",
       fontSize: 14,
     },
-
     authCard: {
       backgroundColor:
         "#FFFDF8",
@@ -14794,44 +16266,37 @@ const styles =
       borderColor:
         "#E6E1D6",
     },
-
     authTitle: {
       fontSize: 26,
       fontWeight: "800",
       color: "#1D2922",
       marginBottom: 6,
     },
-
     authSubtitle: {
       color: "#7A817C",
       fontSize: 14,
       lineHeight: 20,
       marginBottom: 22,
     },
-
     authSwitch: {
       alignItems: "center",
       paddingVertical: 16,
     },
-
     authSwitchText: {
       color: "#345C48",
       fontSize: 14,
       fontWeight: "700",
       textAlign: "center",
     },
-
     authBackHome: {
       alignItems: "center",
       paddingTop: 4,
       paddingBottom: 8,
     },
-
     authBackHomeText: {
       color: "#7A817C",
       fontSize: 13,
     },
-
     authFooter: {
       textAlign: "center",
       color: "#7A817C",
@@ -14840,7 +16305,6 @@ const styles =
       marginTop: 20,
       paddingHorizontal: 12,
     },
-
     authErrorBox: {
       backgroundColor:
         "#FBE9E7",
@@ -14851,7 +16315,6 @@ const styles =
       borderColor:
         "#E9B7B3",
     },
-
     authErrorText: {
       color: "#B94A48",
       fontSize: 13,
