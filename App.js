@@ -2543,11 +2543,23 @@ const ADDITIONAL_PRODUCTS = {
    MERGED INITIAL PRODUCTS
 ========================================================= */
 
-const ALL_INITIAL_PRODUCTS = {
-  ...INITIAL_PRODUCTS,
-  ...ADDITIONAL_PRODUCTS,
-};
+const ALL_INITIAL_PRODUCTS = [
+  ...Object.entries(INITIAL_PRODUCTS).map(
+    ([name, data]) => ({
+      id: `base-${name}`,
+      name,
+      ...data,
+    })
+  ),
 
+  ...Object.entries(ADDITIONAL_PRODUCTS).map(
+    ([name, data]) => ({
+      id: `base-${name}`,
+      name,
+      ...data,
+    })
+  ),
+];
 
 /* =========================================================
    INITIAL RECIPES
