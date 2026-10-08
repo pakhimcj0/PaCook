@@ -5844,7 +5844,11 @@ export default function App() {
     selectedRecipeId,
     setSelectedRecipeId,
   ] = useState(null);
-
+   
+  const [
+  selectedProduct,
+  setSelectedProduct,
+] = useState(null);
 
   const [
     search,
@@ -6896,9 +6900,20 @@ const filteredProducts =
   }
 
   function goProducts() {
-    setScreen("products");
-    setSelectedRecipeId(null);
-  }
+  setScreen("products");
+  setSelectedRecipeId(null);
+  setSelectedProduct(null);
+}
+
+function openProduct(product) {
+  setSelectedProduct(product || null);
+  setScreen("product");
+}
+
+function closeProduct() {
+  setSelectedProduct(null);
+  setScreen("products");
+}
 
   function goFavorites() {
     setScreen("favorites");
@@ -10488,10 +10503,7 @@ function renderRecipesScreen() {
           styles.categoryScroll
         }
       >
-        {[
-          "Все",
-         ...recipeCategories,
-        ].map(
+        {recipeCategories.map(
           (category) => {
             const active =
               recipeCategory ===
@@ -11110,96 +11122,101 @@ function renderProductsScreen() {
               category
             ].map(
               (product) => (
-                <View
-                  key={
-                    product.id ||
-                    product.name
-                  }
-                  style={
-                    styles.productCard
-                  }
-                >
-                  <View
-                    style={
-                      styles.productIcon
-                    }
-                  >
-                    <Text
-                      style={{
-                        fontSize: 25,
-                      }}
-                    >
-                      {getProductEmoji(
-                        product
-                      )}
-                    </Text>
-                  </View>
-                  <View
-                    style={
-                      styles.productMain
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.productName
-                      }
-                    >
-                      {
-                        product.name
-                      }
-                    </Text>
-                    <Text
-                      style={
-                        styles.productKcal
-                      }
-                    >
-                      {Math.round(
-                        Number(
-                          product.kcal
-                        ) || 0
-                      )}{" "}
-                      ккал / 100 г
-                    </Text>
-                    <View
-                      style={
-                        styles.productMacros
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.productMacroText
-                        }
-                      >
-                        Б{" "}
-                        {Number(
-                          product.protein
-                        ) || 0}
-                      </Text>
-                      <Text
-                        style={
-                          styles.productMacroText
-                        }
-                      >
-                        Ж{" "}
-                        {Number(
-                          product.fat
-                        ) || 0}
-                      </Text>
-                      <Text
-                        style={
-                          styles.productMacroText
-                        }
-                      >
-                        У{" "}
-                        {Number(
-                          product.carbs
-                        ) || 0}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              )
-            )}
+              <Pressable
+  key={
+    product.id ||
+    product.name
+  }
+  onPress={() =>
+    openProduct(product)
+  }
+  style={
+    styles.productCard
+  }
+>
+  <View
+    style={
+      styles.productIcon
+    }
+  >
+    <Text
+      style={{
+        fontSize: 25,
+      }}
+    >
+      {getProductEmoji(
+        product
+      )}
+    </Text>
+  </View>
+
+  <View
+    style={
+      styles.productMain
+    }
+  >
+    <Text
+      style={
+        styles.productName
+      }
+    >
+      {product.name}
+    </Text>
+
+    <Text
+      style={
+        styles.productKcal
+      }
+    >
+      {Math.round(
+        Number(
+          product.kcal
+        ) || 0
+      )}{" "}
+      ккал / 100 г
+    </Text>
+
+    <View
+      style={
+        styles.productMacros
+      }
+    >
+      <Text
+        style={
+          styles.productMacroText
+        }
+      >
+        Б{" "}
+        {Number(
+          product.protein
+        ) || 0}
+      </Text>
+
+      <Text
+        style={
+          styles.productMacroText
+        }
+      >
+        Ж{" "}
+        {Number(
+          product.fat
+        ) || 0}
+      </Text>
+
+      <Text
+        style={
+          styles.productMacroText
+        }
+      >
+        У{" "}
+        {Number(
+          product.carbs
+        ) || 0}
+      </Text>
+    </View>
+  </View>
+</Pressable>
+   )}
           </View>
         )
       )}
@@ -11224,10 +11241,191 @@ function renderProductsScreen() {
     </ScrollView>
   );
 }
-
-  // ============================================================
-// FAVORITES SCREEN
 // ============================================================
+// PRODUCT DETAIL SCREEN
+// ============================================================
+function renderProductDetailScreen() {
+  const product = selectedProduct;
+
+  if (!product) {
+    return (
+      <View style={styles.centerScreen}>
+        <Text style={styles.emptyTitle}>
+          Продукт не найден
+        </Text>
+
+        <PrimaryButton
+          title="Назад к продуктам"
+          onPress={closeProduct}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 18,
+        }}
+      >
+        <Pressable
+          onPress={closeProduct}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: COLORS.card,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 30,
+              color: COLORS.green,
+              lineHeight: 32,
+            }}
+          >
+            ‹
+          </Text>
+        </Pressable>
+
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "800",
+            color: COLORS.text,
+          }}
+        >
+          Продукт
+        </Text>
+
+        <View style={{ width: 44 }} />
+      </View>
+
+      <View
+        style={{
+          backgroundColor: COLORS.card,
+          borderRadius: 24,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          padding: 22,
+          marginBottom: 16,
+        }}
+      >
+        <View
+          style={{
+            width: 76,
+            height: 76,
+            borderRadius: 38,
+            backgroundColor: COLORS.lightGreen,
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ fontSize: 40 }}>
+            {getProductEmoji(product)}
+          </Text>
+        </View>
+
+        <Text
+          style={{
+            fontSize: 26,
+            fontWeight: "900",
+            color: COLORS.text,
+            marginBottom: 6,
+          }}
+        >
+          {product.name}
+        </Text>
+
+        <Text
+          style={{
+            color: COLORS.muted,
+            fontSize: 14,
+            marginBottom: 20,
+          }}
+        >
+          Пищевая ценность на 100 г
+        </Text>
+
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 10,
+          }}
+        >
+          <MacroRow
+            label="Калории"
+            value={
+              String(
+                Math.round(
+                  Number(product.kcal) || 0
+                )
+              ) + " ккал"
+            }
+          />
+
+          <MacroRow
+            label="Белки"
+            value={
+              String(
+                Number(product.protein) || 0
+              ) + " г"
+            }
+          />
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 10,
+            marginTop: 10,
+          }}
+        >
+          <MacroRow
+            label="Жиры"
+            value={
+              String(
+                Number(product.fat) || 0
+              ) + " г"
+            }
+          />
+
+          <MacroRow
+            label="Углеводы"
+            value={
+              String(
+                Number(product.carbs) || 0
+              ) + " г"
+            }
+          />
+        </View>
+      </View>
+
+      <PrimaryButton
+        title="Назад к продуктам"
+        onPress={closeProduct}
+      />
+
+      <View style={styles.bottomSpacer} />
+    </ScrollView>
+  );
+}
+  // ============================================================
+  // FAVORITES SCREEN
+  // ============================================================
 function renderFavoritesScreen() {
   const recipesArray =
     Array.isArray(recipes)
@@ -11891,6 +12089,7 @@ if (screen === "home") {
     </View>
   );
 }
+
 if (screen === "recipes") {
   return (
     <View
@@ -11903,6 +12102,7 @@ if (screen === "recipes") {
     </View>
   );
 }
+
 if (screen === "recipe") {
   return (
     <View
@@ -11915,6 +12115,7 @@ if (screen === "recipe") {
     </View>
   );
 }
+
 if (screen === "products") {
   return (
     <View
@@ -11927,6 +12128,20 @@ if (screen === "products") {
     </View>
   );
 }
+
+if (screen === "product") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderProductDetailScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+
 if (screen === "favorites") {
   return (
     <View
@@ -11939,6 +12154,7 @@ if (screen === "favorites") {
     </View>
   );
 }
+
 if (screen === "diary") {
   return (
     <View
@@ -11947,6 +12163,19 @@ if (screen === "diary") {
       }
     >
       {renderDiaryScreen()}
+      {renderBottomNavigation()}
+    </View>
+  );
+}
+
+if (screen === "profile") {
+  return (
+    <View
+      style={
+        styles.appContainer
+      }
+    >
+      {renderProfileScreen()}
       {renderBottomNavigation()}
     </View>
   );
@@ -11994,8 +12223,8 @@ function renderProfileScreen() {
         title="Профиль"
         subtitle="Твой PaCook"
         onProfilePress={
-          () => {}
-        }
+  goProfile
+}
       />
       <View
         style={
