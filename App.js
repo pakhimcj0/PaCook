@@ -5,18 +5,18 @@ import React, {
 } from "react";
 
 import {
-  SafeAreaView,
   View,
   Text,
-  StyleSheet,
+  TextInput,
   ScrollView,
   TouchableOpacity,
-  TextInput,
-  Image,
+  Pressable,
+  StyleSheet,
+  SafeAreaView,
+  ActivityIndicator,
   Alert,
   Switch,
-  KeyboardAvoidingView,
-  Platform,
+  Image,
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
