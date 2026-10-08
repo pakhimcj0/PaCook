@@ -1578,7 +1578,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 91,
   },
 
-  Сахар: {
+  "Сахар": {
     kcal: 399,
     protein: 0,
     fat: 0,
@@ -1606,7 +1606,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 27,
   },
 
-  Дрожжи: {
+  "Дрожжи": {
     kcal: 105,
     protein: 12.7,
     fat: 2.7,
@@ -1620,7 +1620,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 41.2,
   },
 
-  Соль: {
+  "Соль": {
     kcal: 0,
     protein: 0,
     fat: 0,
@@ -1634,14 +1634,14 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 80.6,
   },
 
-  Ванилин: {
+  "Ванилин": {
     kcal: 288,
     protein: 0.1,
     fat: 0.1,
     carbs: 12.7,
   },
 
-  Ваниль: {
+  "Ваниль": {
     kcal: 288,
     protein: 0.1,
     fat: 0.1,
@@ -1669,7 +1669,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 0,
   },
 
-  Сливки: {
+  "Сливки": {
     kcal: 300,
     protein: 2.5,
     fat: 30,
@@ -1718,14 +1718,14 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 2.2,
   },
 
-  Пармезан: {
+  "Пармезан": {
     kcal: 392,
     protein: 35.8,
     fat: 25.8,
     carbs: 3.2,
   },
 
-  Фета: {
+  "Фета": {
     kcal: 264,
     protein: 14.2,
     fat: 21.3,
@@ -1739,7 +1739,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 5,
   },
 
-  Кефир: {
+  "Кефир": {
     kcal: 53,
     protein: 3,
     fat: 2.5,
@@ -1753,14 +1753,14 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 4,
   },
 
-  Ряженка: {
+  "Ряженка": {
     kcal: 67,
     protein: 2.8,
     fat: 4,
     carbs: 4.2,
   },
 
-  Йогурт: {
+  "Йогурт": {
     kcal: 60,
     protein: 4.3,
     fat: 3.2,
@@ -1830,77 +1830,77 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 55,
   },
 
-  Изюм: {
+  "Изюм": {
     kcal: 299,
     protein: 3.1,
     fat: 0.5,
     carbs: 79,
   },
 
-  Курага: {
+  "Курага": {
     kcal: 241,
     protein: 3.4,
     fat: 0.5,
     carbs: 63,
   },
 
-  Чернослив: {
+  "Чернослив": {
     kcal: 240,
     protein: 2.2,
     fat: 0.4,
     carbs: 64,
   },
 
-  Финики: {
+  "Финики": {
     kcal: 282,
     protein: 2.5,
     fat: 0.4,
     carbs: 75,
   },
 
-  Кокосовая стружка: {
+  "Кокосовая стружка": {
     kcal: 660,
     protein: 6.9,
     fat: 64.5,
     carbs: 23.7,
   },
 
-  Грецкий орех: {
+  "Грецкий орех": {
     kcal: 654,
     protein: 15.2,
     fat: 65.2,
     carbs: 13.7,
   },
 
-  Миндаль: {
+  "Миндаль": {
     kcal: 579,
     protein: 21.2,
     fat: 49.9,
     carbs: 21.6,
   },
 
-  Фундук: {
+  "Фундук": {
     kcal: 628,
     protein: 15,
     fat: 61,
     carbs: 17,
   },
 
-  Кешью: {
+  "Кешью": {
     kcal: 553,
     protein: 18.2,
     fat: 43.9,
     carbs: 30.2,
   },
 
-  Арахис: {
+  "Арахис": {
     kcal: 567,
     protein: 25.8,
     fat: 49.2,
     carbs: 16.1,
   },
 
-  Фисташки: {
+  "Фисташки": {
     kcal: 562,
     protein: 20.2,
     fat: 45.3,
@@ -1921,7 +1921,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 28.9,
   },
 
-  Кунжут: {
+  "Кунжут": {
     kcal: 573,
     protein: 17.7,
     fat: 49.7,
@@ -1977,14 +1977,14 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 52,
   },
 
-  Макароны: {
+  "Макароны": {
     kcal: 350,
     protein: 11,
     fat: 1.3,
     carbs: 70,
   },
 
-  Спагетти: {
+  "Спагетти": {
     kcal: 350,
     protein: 12,
     fat: 1.5,
@@ -1998,63 +1998,63 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 65,
   },
 
-  Булгур: {
+  "Булгур": {
     kcal: 342,
     protein: 12.3,
     fat: 1.3,
     carbs: 76,
   },
 
-  Кускус: {
+  "Кускус": {
     kcal: 376,
     protein: 12.8,
     fat: 0.6,
     carbs: 77.4,
   },
 
-  Киноа: {
+  "Киноа": {
     kcal: 368,
     protein: 14,
     fat: 6,
     carbs: 64,
   },
 
-  Перловка: {
+  "Перловка": {
     kcal: 324,
     protein: 9.3,
     fat: 1.1,
     carbs: 73.7,
   },
 
-  Пшено: {
+  "Пшено": {
     kcal: 342,
     protein: 11.5,
     fat: 3.3,
     carbs: 66.5,
   },
 
-  Чечевица: {
+  "Чечевица": {
     kcal: 295,
     protein: 24,
     fat: 1.5,
     carbs: 46,
   },
 
-  Нут: {
+  "Нут": {
     kcal: 364,
     protein: 19,
     fat: 6,
     carbs: 61,
   },
 
-  Фасоль: {
+  "Фасоль": {
     kcal: 298,
     protein: 21,
     fat: 2,
     carbs: 47,
   },
 
-  Горох: {
+  "Горох": {
     kcal: 298,
     protein: 20.5,
     fat: 2,
@@ -2068,98 +2068,98 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 13.8,
   },
 
-  Кукуруза: {
+  "Кукуруза": {
     kcal: 86,
     protein: 3.2,
     fat: 1.2,
     carbs: 19,
   },
 
-  Помидор: {
+  "Помидор": {
     kcal: 18,
     protein: 0.9,
     fat: 0.2,
     carbs: 3.9,
   },
 
-  Огурец: {
+  "Огурец": {
     kcal: 15,
     protein: 0.7,
     fat: 0.1,
     carbs: 3.6,
   },
 
-  Морковь: {
+  "Морковь": {
     kcal: 35,
     protein: 1.3,
     fat: 0.1,
     carbs: 6.9,
   },
 
-  Лук: {
+  "Лук": {
     kcal: 41,
     protein: 1.4,
     fat: 0.2,
     carbs: 10.4,
   },
 
-  Чеснок: {
+  "Чеснок": {
     kcal: 149,
     protein: 6.4,
     fat: 0.5,
     carbs: 33,
   },
 
-  Болгарский перец: {
+  "Болгарский перец": {
     kcal: 27,
     protein: 1.3,
     fat: 0.1,
     carbs: 5.3,
   },
 
-  Брокколи: {
+  "Брокколи": {
     kcal: 34,
     protein: 2.8,
     fat: 0.4,
     carbs: 6.6,
   },
 
-  Цветная капуста: {
+  "Цветная капуста": {
     kcal: 25,
     protein: 1.9,
     fat: 0.3,
     carbs: 5,
   },
 
-  Кабачок: {
+  "Кабачок": {
     kcal: 24,
     protein: 0.6,
     fat: 0.3,
     carbs: 4.6,
   },
 
-  Баклажан: {
+  "Баклажан": {
     kcal: 24,
     protein: 1,
     fat: 0.2,
     carbs: 5.5,
   },
 
-  Шпинат: {
+  "Шпинат": {
     kcal: 23,
     protein: 2.9,
     fat: 0.4,
     carbs: 3.6,
   },
 
-  Салат: {
+  "Салат": {
     kcal: 15,
     protein: 1.4,
     fat: 0.2,
     carbs: 2.9,
   },
 
-  Капуста: {
+  "Капуста": {
     kcal: 27,
     protein: 1.8,
     fat: 0.1,
@@ -2173,35 +2173,35 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 7.4,
   },
 
-  Свёкла: {
+  "Свёкла": {
     kcal: 43,
     protein: 1.6,
     fat: 0.2,
     carbs: 9.6,
   },
 
-  Тыква: {
+  "Тыква": {
     kcal: 26,
     protein: 1,
     fat: 0.1,
     carbs: 6.5,
   },
 
-  Грибы: {
+  "Грибы": {
     kcal: 27,
     protein: 3.5,
     fat: 0.5,
     carbs: 2.5,
   },
 
-  Шампиньоны: {
+  "Шампиньоны": {
     kcal: 27,
     protein: 4.3,
     fat: 1,
     carbs: 0.1,
   },
 
-  Бекон: {
+  "Бекон": {
     kcal: 541,
     protein: 37,
     fat: 42,
@@ -2278,7 +2278,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 3.9,
   },
 
-  Креветки: {
+  "Креветки": {
     kcal: 99,
     protein: 24,
     fat: 0.3,
@@ -2292,21 +2292,21 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 0,
   },
 
-  Треска: {
+  "Треска": {
     kcal: 82,
     protein: 17.7,
     fat: 0.7,
     carbs: 0,
   },
 
-  Креветка: {
+  "Креветка": {
     kcal: 99,
     protein: 24,
     fat: 0.3,
     carbs: 0.2,
   },
 
-  Сардины: {
+  "Сардины": {
     kcal: 208,
     protein: 24.6,
     fat: 11.5,
@@ -2327,21 +2327,21 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 4.9,
   },
 
-  Кетчуп: {
+  "Кетчуп": {
     kcal: 112,
     protein: 1.3,
     fat: 0.2,
     carbs: 27,
   },
 
-  Майонез: {
+  "Майонез": {
     kcal: 627,
     protein: 2.4,
     fat: 67,
     carbs: 3.9,
   },
 
-  Горчица: {
+  "Горчица": {
     kcal: 162,
     protein: 5.7,
     fat: 9.2,
@@ -2362,78 +2362,77 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 5,
   },
 
-
-  Лимон: {
+  "Лимон": {
     kcal: 29,
     protein: 1.1,
     fat: 0.3,
     carbs: 9,
   },
 
-  Апельсин: {
+  "Апельсин": {
     kcal: 47,
     protein: 0.9,
     fat: 0.1,
     carbs: 11.8,
   },
 
-  Мандарин: {
+  "Мандарин": {
     kcal: 53,
     protein: 0.8,
     fat: 0.3,
     carbs: 13.3,
   },
 
-  Груша: {
+  "Груша": {
     kcal: 42,
     protein: 0.4,
     fat: 0.3,
     carbs: 10.9,
   },
 
-  Персик: {
+  "Персик": {
     kcal: 39,
     protein: 0.9,
     fat: 0.3,
     carbs: 9.5,
   },
 
-  Виноград: {
+  "Виноград": {
     kcal: 69,
     protein: 0.7,
     fat: 0.2,
     carbs: 18,
   },
 
-  Киви: {
+  "Киви": {
     kcal: 61,
     protein: 1.1,
     fat: 0.5,
     carbs: 14.7,
   },
 
-  Манго: {
+  "Манго": {
     kcal: 60,
     protein: 0.8,
     fat: 0.4,
     carbs: 15,
   },
 
-  Ананас: {
+  "Ананас": {
     kcal: 50,
     protein: 0.5,
     fat: 0.1,
     carbs: 13,
   },
 
-  Вишня: {
+  "Вишня": {
     kcal: 52,
     protein: 1.1,
     fat: 0.2,
     carbs: 12,
   },
 
-  Перец: {
+  "Перец": {
     kcal: 40,
     protein: 2,
     fat: 0.2,
@@ -2447,7 +2446,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 63.9,
   },
 
-  Паприка: {
+  "Паприка": {
     kcal: 282,
     protein: 14.1,
     fat: 12.9,
@@ -2461,28 +2460,28 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 50,
   },
 
-  Петрушка: {
+  "Петрушка": {
     kcal: 36,
     protein: 3,
     fat: 0.8,
     carbs: 6.3,
   },
 
-  Укроп: {
+  "Укроп": {
     kcal: 43,
     protein: 3.5,
     fat: 1.1,
     carbs: 7,
   },
 
-  Базилик: {
+  "Базилик": {
     kcal: 23,
     protein: 3.2,
     fat: 0.6,
     carbs: 2.7,
   },
 
-  Авокадо: {
+  "Авокадо": {
     kcal: 160,
     protein: 2,
     fat: 15,
@@ -2496,7 +2495,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 7.3,
   },
 
-  Имбирь: {
+  "Имбирь": {
     kcal: 80,
     protein: 1.8,
     fat: 0.8,
@@ -2510,7 +2509,7 @@ const ADDITIONAL_PRODUCTS = {
     carbs: 0,
   },
 
-  Желатин: {
+  "Желатин": {
     kcal: 355,
     protein: 87.2,
     fat: 0.4,
