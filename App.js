@@ -12574,388 +12574,117 @@ if (screen === "profile") {
     </View>
   );
 }
+
 // ============================================================
-// PROFILE SCREEN
+// PROFILE SAVE
 // ============================================================
-function renderProfileScreen() {
-  const recipesArray =
-    Array.isArray(recipes)
-      ? recipes
-      : [];
-  const productsArray =
-    ensureProductsArray(
-      products
+async function saveProfile() {
+  const currentForm =
+    profileForm &&
+    typeof profileForm === "object"
+      ? profileForm
+      : {};
+  const avatarUrl = String(
+    currentForm.avatar ||
+      currentForm.avatarUrl ||
+      ""
+  ).trim();
+  const nextProfile = {
+    ...(profile || {}),
+    name:
+      String(currentForm.name || "").trim() ||
+      "PaCook User",
+    username:
+      String(currentForm.username || "")
+        .trim()
+        .replace(/\s/g, ""),
+    bio:
+      String(currentForm.bio || "").trim(),
+    avatar: avatarUrl,
+    avatarUrl: avatarUrl,
+    avatar_url: avatarUrl,
+    photo: avatarUrl,
+    city:
+      String(currentForm.city || "").trim(),
+    updated_at: new Date().toISOString(),
+  };
+  // Сразу обновляем экран
+  setProfile(nextProfile);
+  setProfileForm(nextProfile);
+  // Сохраняем профиль локально
+  try {
+    await saveLocalProfile(nextProfile);
+    await persistEverything({
+      profile: nextProfile,
+    });
+  } catch (error) {
+    console.log(
+      "LOCAL PROFILE SAVE ERROR:",
+      error
     );
-  const favoritesArray =
-    Array.isArray(favorites)
-      ? favorites
-      : [];
-  const profileName =
-    profile?.name ||
-    authUser?.user_metadata?.name ||
-    "PaCook User";
-  const profileUsername =
-    profile?.username || "";
-  const profileBio =
-    profile?.bio || "";
-  const profileAvatar =
-    profile?.avatar ||
-    profile?.photo ||
-    authUser?.user_metadata?.avatar ||
-    "";
-  return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={
-        styles.scrollContent
+  }
+  // Сохраняем имя и аватар в Supabase
+  if (authUser?.id) {
+    try {
+      await saveProfileToSupabase(
+        authUser.id,
+        {
+          name: nextProfile.name,
+          avatarUrl: avatarUrl,
+        }
+      );
+    } catch (error) {
+      console.log(
+        "SUPABASE PROFILE SAVE ERROR:",
+        error
+      );
+      if (
+        typeof window !== "undefined" &&
+        window.alert
+      ) {
+        window.alert(
+          "Профиль сохранён на этом устройстве, " +
+          "но не удалось сохранить его в аккаунте. " +
+          "Проверь таблицу profiles в Supabase."
+        );
       }
-      showsVerticalScrollIndicator={
-        false
-      }
-    >
-      <AppHeader
-        title="Профиль"
-        subtitle="Твой PaCook"
-        onProfilePress={
-  goProfile
+    }
+  }
+  setScreen("profile");
 }
-      />
-      <View
-        style={
-          styles.profileHero
-        }
-      >
-        <View
-          style={
-            styles.profileAvatarLarge
-          }
-        >
-          {profileAvatar ? (
-            <ImageWithFallback
-              uri={
-                profileAvatar
-              }
-              style={
-                styles.profileAvatarImage
-              }
-              fallback="👨‍🍳"
-            />
-          ) : (
-            <Text
-              style={{
-                fontSize: 42,
-              }}
-            >
-              👨‍🍳
-            </Text>
-          )}
-        </View>
-        <Text
-          style={
-            styles.profileName
-          }
-        >
-          {profileName}
-        </Text>
-        {!!profileUsername && (
-          <Text
-            style={
-              styles.profileUsername
-            }
-          >
-            @{profileUsername}
-          </Text>
-        )}
-        <Text
-          style={
-            styles.profileEmail
-          }
-        >
-          {authUser?.email ||
-            "Твой персональный профиль"}
-        </Text>
-        {!!profileBio && (
-          <Text
-            style={
-              styles.profileBio
-            }
-          >
-            {profileBio}
-          </Text>
-        )}
-        <SecondaryButton
-          title="Редактировать профиль"
-          onPress={
-            startEditProfile
-          }
-        />
-      </View>
-      <View
-        style={
-          styles.profileStats
-        }
-      >
-        <StatCard
-          label="Рецепты"
-          value={
-            recipesArray.length
-          }
-        />
-        <StatCard
-          label="Продукты"
-          value={
-            productsArray.length
-          }
-        />
-        <StatCard
-          label="Избранное"
-          value={
-            favoritesArray.length
-          }
-        />
-      </View>
-      <SectionTitle
-        title="Мой PaCook"
-      />
-      <Pressable
-        style={
-          styles.menuCard
-        }
-        onPress={
-          goDiary
-        }
-      >
-        <View
-          style={
-            styles.menuIcon
-          }
-        >
-          <Text
-            style={{
-              fontSize: 22,
-            }}
-          >
-            📅
-          </Text>
-        </View>
-        <View
-          style={
-            styles.menuMain
-          }
-        >
-          <Text
-            style={
-              styles.menuTitle
-            }
-          >
-            Дневник питания
-          </Text>
-          <Text
-            style={
-              styles.menuSubtitle
-            }
-          >
-            Планируй питание на
-            всю неделю
-          </Text>
-        </View>
-        <Text
-          style={
-            styles.menuArrow
-          }
-        >
-          ›
-        </Text>
-      </Pressable>
-      <Pressable
-        style={
-          styles.menuCard
-        }
-        onPress={
-          goFavorites
-        }
-      >
-        <View
-          style={
-            styles.menuIcon
-          }
-        >
-          <Text
-            style={{
-              fontSize: 22,
-            }}
-          >
-            ❤️
-          </Text>
-        </View>
-        <View
-          style={
-            styles.menuMain
-          }
-        >
-          <Text
-            style={
-              styles.menuTitle
-            }
-          >
-            Избранное
-          </Text>
-          <Text
-            style={
-              styles.menuSubtitle
-            }
-          >
-            Сохранённые рецепты
-          </Text>
-        </View>
-        <Text
-          style={
-            styles.menuArrow
-          }
-        >
-          ›
-        </Text>
-      </Pressable>
-      <SectionTitle
-        title="Автор"
-      />
-      <Pressable
-        style={
-          styles.authorProfileCard
-        }
-        onPress={
-          enterAuthorMode
-        }
-      >
-        <View
-          style={
-            styles.authorBadge
-          }
-        >
-          <Text
-            style={{
-              fontSize: 26,
-            }}
-          >
-            ✨
-          </Text>
-        </View>
-        <View
-          style={
-            styles.menuMain
-          }
-        >
-          <Text
-            style={
-              styles.menuTitle
-            }
-          >
-            Авторский режим
-          </Text>
-          <Text
-            style={
-              styles.menuSubtitle
-            }
-          >
-            {authorUnlocked
-              ? "Управление твоими рецептами и продуктами"
-              : "Создавай свои рецепты"}
-          </Text>
-        </View>
-        <Text
-          style={
-            styles.menuArrow
-          }
-        >
-          ›
-        </Text>
-      </Pressable>
-      <SectionTitle
-        title="Настройки"
-      />
-      <Pressable
-        style={
-          styles.menuCard
-        }
-        onPress={
-          goSettings
-        }
-      >
-        <View
-          style={
-            styles.menuIcon
-          }
-        >
-          <Text
-            style={{
-              fontSize: 22,
-            }}
-          >
-            ⚙️
-          </Text>
-        </View>
-        <View
-          style={
-            styles.menuMain
-          }
-        >
-          <Text
-            style={
-              styles.menuTitle
-            }
-          >
-            Настройки
-          </Text>
-          <Text
-            style={
-              styles.menuSubtitle
-            }
-          >
-            Приложение и данные
-          </Text>
-        </View>
-        <Text
-          style={
-            styles.menuArrow
-          }
-        >
-          ›
-        </Text>
-      </Pressable>
-      {authUser ? (
-        <Pressable
-          style={
-            styles.logoutButton
-          }
-          onPress={
-            logoutUser
-          }
-        >
-          <Text
-            style={
-              styles.logoutText
-            }
-          >
-            Выйти из аккаунта
-          </Text>
-        </Pressable>
-      ) : (
-        <PrimaryButton
-          title="Войти / Регистрация"
-          onPress={() =>
-            setScreen(
-              "auth"
-            )
-          }
-        />
-      )}
-      <View
-        style={
-          styles.bottomSpacer
-        }
-      />
-    </ScrollView>
-  );
+// ============================================================
+// PROFILE EDIT
+// ============================================================
+function startEditProfile() {
+  const currentProfile =
+    profile &&
+    typeof profile === "object"
+      ? profile
+      : {};
+  const avatarUrl =
+    currentProfile.avatar ||
+    currentProfile.avatarUrl ||
+    currentProfile.avatar_url ||
+    currentProfile.photo ||
+    authUser?.user_metadata?.avatar ||
+    authUser?.user_metadata?.avatar_url ||
+    "";
+  setProfileForm({
+    ...currentProfile,
+    name:
+      currentProfile.name ||
+      authUser?.user_metadata?.name ||
+      "PaCook User",
+    username:
+      currentProfile.username || "",
+    bio:
+      currentProfile.bio || "",
+    avatar: avatarUrl,
+    avatarUrl: avatarUrl,
+    city:
+      currentProfile.city || "",
+  });
+  setScreen("profileEdit");
 }
 
   // ============================================================
@@ -12972,43 +12701,35 @@ function renderProfileEditScreen() {
           city: "",
           bio: "",
           avatar: "",
+          avatarUrl: "",
+          avatar_url: "",
+          photo: "",
         };
+  const profileAvatar =
+    String(
+      safeProfileForm.avatar ||
+        safeProfileForm.avatarUrl ||
+        safeProfileForm.avatar_url ||
+        safeProfileForm.photo ||
+        ""
+    ).trim();
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={
-        styles.scrollContent
-      }
-      showsVerticalScrollIndicator={
-        false
-      }
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <View
-        style={
-          styles.simpleTopBar
-        }
-      >
+      <View style={styles.simpleTopBar}>
         <Pressable
-          onPress={
-            goProfile
-          }
-          style={
-            styles.backButton
-          }
+          onPress={goProfile}
+          style={styles.backButton}
         >
-          <Text
-            style={
-              styles.backButtonText
-            }
-          >
+          <Text style={styles.backButtonText}>
             ‹
           </Text>
         </Pressable>
-        <Text
-          style={
-            styles.simpleTopTitle
-          }
-        >
+        <Text style={styles.simpleTopTitle}>
           Редактирование
         </Text>
         <View
@@ -13017,19 +12738,12 @@ function renderProfileEditScreen() {
           }}
         />
       </View>
-      <View
-        style={
-          styles.editProfileAvatar
-        }
-      >
-        {safeProfileForm.avatar ? (
+      {/* ПРЕДПРОСМОТР АВАТАРКИ */}
+      <View style={styles.editProfileAvatar}>
+        {profileAvatar ? (
           <ImageWithFallback
-            uri={
-              safeProfileForm.avatar
-            }
-            style={
-              styles.editProfileAvatarImage
-            }
+            uri={profileAvatar}
+            style={styles.editProfileAvatarImage}
             fallback="👨‍🍳"
           />
         ) : (
@@ -13042,113 +12756,68 @@ function renderProfileEditScreen() {
           </Text>
         )}
       </View>
-      <Text
-        style={
-          styles.avatarHint
-        }
-      >
-        Фото сохраняется как
-        ссылка и не пропадает
-        после обновления
-        приложения.
+      <Text style={styles.avatarHint}>
+        Вставь прямую ссылку на фотографию.
+        После сохранения она останется в профиле.
       </Text>
-      <View
-        style={
-          styles.formCard
-        }
-      >
+      <View style={styles.formCard}>
         <FormInput
           label="Имя"
-          value={
-            safeProfileForm.name || ""
-          }
-          onChangeText={(
-            value
-          ) =>
-            setProfileForm(
-              (current) => ({
-                ...(current || {}),
-                name: value,
-              })
-            )
+          value={safeProfileForm.name || ""}
+          onChangeText={(value) =>
+            setProfileForm((current) => ({
+              ...(current || {}),
+              name: value,
+            }))
           }
           placeholder="Твоё имя"
         />
         <FormInput
           label="Никнейм"
-          value={
-            safeProfileForm.username ||
-            ""
-          }
-          onChangeText={(
-            value
-          ) =>
-            setProfileForm(
-              (current) => ({
-                ...(current || {}),
-                username:
-                  value.replace(
-                    /\s/g,
-                    ""
-                  ),
-              })
-            )
+          value={safeProfileForm.username || ""}
+          onChangeText={(value) =>
+            setProfileForm((current) => ({
+              ...(current || {}),
+              username: value.replace(/\s/g, ""),
+            }))
           }
           placeholder="username"
           autoCapitalize="none"
         />
         <FormInput
           label="Город"
-          value={
-            safeProfileForm.city ||
-            ""
-          }
-          onChangeText={(
-            value
-          ) =>
-            setProfileForm(
-              (current) => ({
-                ...(current || {}),
-                city: value,
-              })
-            )
+          value={safeProfileForm.city || ""}
+          onChangeText={(value) =>
+            setProfileForm((current) => ({
+              ...(current || {}),
+              city: value,
+            }))
           }
           placeholder="Например, Алматы"
         />
         <FormInput
           label="О себе"
-          value={
-            safeProfileForm.bio ||
-            ""
-          }
-          onChangeText={(
-            value
-          ) =>
-            setProfileForm(
-              (current) => ({
-                ...(current || {}),
-                bio: value,
-              })
-            )
+          value={safeProfileForm.bio || ""}
+          onChangeText={(value) =>
+            setProfileForm((current) => ({
+              ...(current || {}),
+              bio: value,
+            }))
           }
           placeholder="Расскажи немного о себе"
           multiline
         />
         <FormInput
           label="Ссылка на фото"
-          value={
-            safeProfileForm.avatar ||
-            ""
-          }
-          onChangeText={(
-            value
-          ) =>
-            setProfileForm(
-              (current) => ({
-                ...(current || {}),
-                avatar: value,
-              })
-            )
+          value={profileAvatar}
+          onChangeText={(value) =>
+            setProfileForm((current) => ({
+              ...(current || {}),
+              avatar: value,
+              avatarUrl: value,
+              avatar_url: value,
+              photo: value,
+            }))
           }
           placeholder="https://..."
           autoCapitalize="none"
@@ -13156,25 +12825,18 @@ function renderProfileEditScreen() {
         />
         <PrimaryButton
           title="Сохранить профиль"
-          onPress={
-            saveProfile
-          }
+          onPress={saveProfile}
         />
         <SecondaryButton
           title="Отмена"
-          onPress={
-            goProfile
-          }
+          onPress={goProfile}
         />
       </View>
-      <View
-        style={
-          styles.bottomSpacer
-        }
-      />
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
+
 // ============================================================
 // AUTHOR SCREEN
 // ============================================================
@@ -13654,8 +13316,8 @@ function renderAuthorScreen() {
 }
 
   // ============================================================
-// PRODUCT EDITOR
-// ============================================================
+  // PRODUCT EDITOR
+  // ============================================================
 function renderAuthorProductScreen() {
   const editing =
     Boolean(editingProductName);
@@ -17288,7 +16950,9 @@ return (
         renderRecipesScreen()}
       {screen === "products" &&
         renderProductsScreen()}
-           {screen === "recipe" &&
+      {screen === "product" &&
+        renderProductDetailScreen()}
+      {screen === "recipe" &&
         renderRecipeScreen()}
       {screen === "recipeDetail" &&
         renderRecipeScreen()}
