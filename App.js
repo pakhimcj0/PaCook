@@ -879,26 +879,7 @@ const DEFAULT_RECIPES = [
 // Используем объектный формат DEFAULT_PRODUCTS
 // и оставляем только по одной функции каждого типа.
 // ============================================================
-function createDefaultProducts() {
-  if (!Array.isArray(DEFAULT_PRODUCTS)) {
-    return [];
-  }
-  return DEFAULT_PRODUCTS.map((row, index) =>
-    normalizeProduct({
-      ...row,
-      id: `default-product-${index + 1}`,
-      name: String(row.name || "").trim(),
-      category: row.category || "Другое",
-      kcal: Number(row.kcal) || 0,
-      protein: Number(row.protein) || 0,
-      fat: Number(row.fat) || 0,
-      carbs: Number(row.carbs) || 0,
-      fiber: Number(row.fiber) || 0,
-      image: row.image || "",
-      custom: false,
-    })
-  );
-}
+
 function createDefaultRecipes() {
   if (!Array.isArray(DEFAULT_RECIPES)) {
     return [];
