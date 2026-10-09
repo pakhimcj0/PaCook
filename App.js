@@ -873,69 +873,83 @@ const DEFAULT_RECIPES = [
     ],
   },
 ];
-// Нормализация рецептов для приложения.
-function createDefaultRecipes() {
-  return DEFAULT_RECIPES.map((recipe) =>
-    normalizeRecipe({
-      ...recipe,
-      ingredients: recipe.ingredients.map((ingredient) => {
-        const product = DEFAULT_PRODUCTS.find(
-          (item) =>
-            item.name.toLowerCase() ===
-            ingredient.product.toLowerCase()
-        );
-        return {
-          ...ingredient,
-          productId: product
-            ? `default-product-${DEFAULT_PRODUCTS.indexOf(product) + 1}`
-            : "",
-          product_id: product
-            ? `default-product-${DEFAULT_PRODUCTS.indexOf(product) + 1}`
-            : "",
-          amount: ingredient.grams,
-        };
-      }),
-    })
-  );
-}
+
 // ============================================================
-// КОНЕЦ БЛОКА НАЧАЛЬНЫХ ДАННЫХ
-// ============================================================
-// ============================================================
-// НОРМАЛИЗАЦИЯ И НАЧАЛЬНЫЕ МАССИВЫ
+// НОРМАЛИЗАЦИЯ НАЧАЛЬНЫХ ДАННЫХ PACOOK
+// Используем объектный формат DEFAULT_PRODUCTS
+// и оставляем только по одной функции каждого типа.
 // ============================================================
 function createDefaultProducts() {
+  if (!Array.isArray(DEFAULT_PRODUCTS)) {
+    return [];
+  }
   return DEFAULT_PRODUCTS.map((row, index) =>
     normalizeProduct({
+      ...row,
       id: `default-product-${index + 1}`,
-      name: row[0],
-      category: row[1],
-      kcal: row[2],
-      protein: row[3],
-      fat: row[4],
-      carbs: row[5],
-      fiber: 0,
-      image: "",
+      name: String(row.name || "").trim(),
+      category: row.category || "Другое",
+      kcal: Number(row.kcal) || 0,
+      protein: Number(row.protein) || 0,
+      fat: Number(row.fat) || 0,
+      carbs: Number(row.carbs) || 0,
+      fiber: Number(row.fiber) || 0,
+      image: row.image || "",
       custom: false,
     })
   );
 }
 function createDefaultRecipes() {
-  return DEFAULT_RECIPES.map((recipe) =>
-    normalizeRecipe({
+  if (!Array.isArray(DEFAULT_RECIPES)) {
+    return [];
+  }
+  return DEFAULT_RECIPES.map((recipe, recipeIndex) => {
+    const ingredients = Array.isArray(recipe.ingredients)
+      ? recipe.ingredients.map((item) => {
+          const ingredientName = String(
+            typeof item.product === "string"
+              ? item.product
+              : item.productName || ""
+          ).trim();
+          const foundIndex = DEFAULT_PRODUCTS.findIndex(
+            (product) =>
+              String(product.name || "").toLowerCase() ===
+              ingredientName.toLowerCase()
+          );
+          const productId =
+            foundIndex >= 0
+              ? `default-product-${foundIndex + 1}`
+              : String(item.productId || item.product_id || "");
+          const grams = Number(
+            item.grams ?? item.amount ?? item.weight ?? 0
+          ) || 0;
+          return {
+            ...item,
+            product: ingredientName,
+            productId,
+            product_id: productId,
+            grams,
+            amount: grams,
+          };
+        })
+      : [];
+    return normalizeRecipe({
       ...recipe,
-      ingredients: recipe.ingredients.map((item) => ({
-        ...item,
-        productId: "",
-        product_id: "",
-        amount: item.grams,
-      })),
-    })
-  );
+      id: recipe.id || `default-recipe-${recipeIndex + 1}`,
+      title: recipe.title || recipe.name || "Новый рецепт",
+      ingredients,
+      steps: Array.isArray(recipe.steps) ? recipe.steps : [],
+      servings: Number(recipe.servings) || 1,
+    });
+  });
 }
+// ============================================================
+// КОНЕЦ НОРМАЛИЗАЦИИ НАЧАЛЬНЫХ ДАННЫХ
+// ============================================================
 // ============================================================
 // SUPABASE: БЕЗОПАСНЫЕ ОПЕРАЦИИ
 // ============================================================
+
 async function getSupabaseProducts() {
   const { data, error } = await supabase
     .from("products")
