@@ -9036,8 +9036,8 @@ async function resetLocalData() {
 }
 
   // ============================================================
-// ADD INGREDIENT TO RECIPE FORM
-// ============================================================
+  // ADD INGREDIENT TO RECIPE FORM
+  // ============================================================
 function addRecipeIngredient() {
   const productsArray =
     ensureProductsArray(
@@ -9370,8 +9370,8 @@ const currentDayMacros =
   );
   
   // ============================================================
-// STYLES
-// ============================================================
+  // STYLES
+  // ============================================================
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -10028,18 +10028,17 @@ const customRecipesCount =
       </View>
     );
   }
+  
   // ============================================================
-// MAIN APP SCREENS
-// ============================================================
+  // MAIN APP SCREENS
+  // ============================================================
 function renderHomeScreen() {
   const recipesArray =
     Array.isArray(recipes)
       ? recipes
       : [];
   const productsArray =
-    ensureProductsArray(
-      products
-    );
+    ensureProductsArray(products);
   const favoritesArray =
     Array.isArray(favorites)
       ? favorites
@@ -10048,260 +10047,140 @@ function renderHomeScreen() {
     recipesArray.slice(0, 6);
   const favoriteRecipes =
     recipesArray
-      .filter(
-        (recipe) =>
-          isFavorite(
-            recipe.id
-          )
+      .filter((recipe) =>
+        isFavorite(recipe.id)
       )
       .slice(0, 4);
   const todayCalories =
-    getDiaryCalories(
-      diaryDay
-    );
+    getDiaryCalories(diaryDay);
   const todayTarget =
     Number(
       settings?.diaryTargets?.[
         String(diaryDay)
       ]
     ) || 0;
+  const renderRecipeCard = (
+    recipe,
+    compact = false,
+    favorite = isFavorite(recipe.id)
+  ) => (
+    <RecipeCard
+      key={recipe.id}
+      recipe={recipe}
+      products={productsArray}
+      favorite={favorite}
+      onPress={() =>
+        openRecipe(recipe.id)
+      }
+      onFavorite={() =>
+        toggleFavorite(recipe.id)
+      }
+      compact={compact}
+    />
+  );
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={
-        styles.scrollContent
-      }
-      showsVerticalScrollIndicator={
-        false
-      }
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
     >
       <AppHeader
         title="PaCook"
         subtitle="Cook smart. Eat better."
-        onProfilePress={
-          goProfile
-        }
+        onProfilePress={goProfile}
       />
-      <View
-        style={
-          styles.heroCard
-        }
-      >
-        <View
-          style={
-            styles.heroTextWrap
-          }
-        >
-          <Text
-            style={
-              styles.heroTitle
-            }
-          >
+      <View style={styles.heroCard}>
+        <View style={styles.heroTextWrap}>
+          <Text style={styles.heroTitle}>
             Готовь вкусно.
           </Text>
-          <Text
-            style={
-              styles.heroTitle
-            }
-          >
+          <Text style={styles.heroTitle}>
             Ешь лучше.
           </Text>
-          <Text
-            style={
-              styles.heroSubtitle
-            }
-          >
-            Рецепты, продукты и
-            КБЖУ — всё в одном
-            месте.
+          <Text style={styles.heroSubtitle}>
+            Рецепты, продукты и КБЖУ — всё в одном месте.
           </Text>
           <PrimaryButton
             title="Смотреть рецепты"
-            onPress={
-              goRecipes
-            }
+            onPress={goRecipes}
           />
         </View>
-        <View
-          style={
-            styles.heroEmoji
-          }
-        >
-          <Text
-            style={{
-              fontSize: 58,
-            }}
-          >
+        <View style={styles.heroEmoji}>
+          <Text style={{ fontSize: 58 }}>
             🍳
           </Text>
         </View>
       </View>
-      <View
-        style={
-          styles.quickGrid
-        }
-      >
+      <View style={styles.quickGrid}>
         <Pressable
-          style={
-            styles.quickCard
-          }
-          onPress={
-            goRecipes
-          }
+          style={styles.quickCard}
+          onPress={goRecipes}
         >
-          <Text
-            style={
-              styles.quickEmoji
-            }
-          >
+          <Text style={styles.quickEmoji}>
             🍽️
           </Text>
-          <Text
-            style={
-              styles.quickTitle
-            }
-          >
+          <Text style={styles.quickTitle}>
             Рецепты
           </Text>
-          <Text
-            style={
-              styles.quickValue
-            }
-          >
+          <Text style={styles.quickValue}>
             {recipesArray.length}
           </Text>
         </Pressable>
         <Pressable
-          style={
-            styles.quickCard
-          }
-          onPress={
-            goProducts
-          }
+          style={styles.quickCard}
+          onPress={goProducts}
         >
-          <Text
-            style={
-              styles.quickEmoji
-            }
-          >
+          <Text style={styles.quickEmoji}>
             🥕
           </Text>
-          <Text
-            style={
-              styles.quickTitle
-            }
-          >
+          <Text style={styles.quickTitle}>
             Продукты
           </Text>
-          <Text
-            style={
-              styles.quickValue
-            }
-          >
+          <Text style={styles.quickValue}>
             {productsArray.length}
           </Text>
         </Pressable>
         <Pressable
-          style={
-            styles.quickCard
-          }
-          onPress={
-            goFavorites
-          }
+          style={styles.quickCard}
+          onPress={goFavorites}
         >
-          <Text
-            style={
-              styles.quickEmoji
-            }
-          >
+          <Text style={styles.quickEmoji}>
             ❤️
           </Text>
-          <Text
-            style={
-              styles.quickTitle
-            }
-          >
+          <Text style={styles.quickTitle}>
             Избранное
           </Text>
-          <Text
-            style={
-              styles.quickValue
-            }
-          >
+          <Text style={styles.quickValue}>
             {favoritesArray.length}
           </Text>
         </Pressable>
         <Pressable
-          style={
-            styles.quickCard
-          }
-          onPress={
-            goDiary
-          }
+          style={styles.quickCard}
+          onPress={goDiary}
         >
-          <Text
-            style={
-              styles.quickEmoji
-            }
-          >
+          <Text style={styles.quickEmoji}>
             📅
           </Text>
-          <Text
-            style={
-              styles.quickTitle
-            }
-          >
+          <Text style={styles.quickTitle}>
             Дневник
           </Text>
-          <Text
-            style={
-              styles.quickValue
-            }
-          >
-            {Math.round(
-              todayCalories
-            )}{" "}
-            ккал
+          <Text style={styles.quickValue}>
+            {Math.round(todayCalories)} ккал
           </Text>
         </Pressable>
       </View>
       {todayTarget > 0 && (
-        <View
-          style={
-            styles.dailySummaryCard
-          }
-        >
-          <View
-            style={
-              styles.rowBetween
-            }
-          >
-            <Text
-              style={
-                styles.cardTitle
-              }
-            >
+        <View style={styles.dailySummaryCard}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.cardTitle}>
               Сегодня
             </Text>
-            <Text
-              style={
-                styles.mutedText
-              }
-            >
-              {Math.round(
-                todayCalories
-              )}{" "}
-              /{" "}
-              {Math.round(
-                todayTarget
-              )} ккал
+            <Text style={styles.mutedText}>
+              {Math.round(todayCalories)} /{" "}
+              {Math.round(todayTarget)} ккал
             </Text>
           </View>
-          <View
-            style={
-              styles.progressTrack
-            }
-          >
+          <View style={styles.progressTrack}>
             <View
               style={[
                 styles.progressFill,
@@ -10310,27 +10189,18 @@ function renderHomeScreen() {
                     100,
                     Math.max(
                       0,
-                      (todayCalories /
-                        todayTarget) *
-                        100
+                      (todayCalories / todayTarget) * 100
                     )
                   )}%`,
                 },
               ]}
             />
           </View>
-          <Text
-            style={
-              styles.smallMuted
-            }
-          >
+          <Text style={styles.smallMuted}>
             Осталось примерно{" "}
             {Math.max(
               0,
-              Math.round(
-                todayTarget -
-                  todayCalories
-              )
+              Math.round(todayTarget - todayCalories)
             )}{" "}
             ккал
           </Text>
@@ -10339,52 +10209,18 @@ function renderHomeScreen() {
       <SectionTitle
         title="Популярные рецепты"
         action="Все"
-        onAction={
-          goRecipes
-        }
+        onAction={goRecipes}
       />
-      {popularRecipes.length >
-      0 ? (
+      {popularRecipes.length > 0 ? (
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={
-            false
-          }
+          showsHorizontalScrollIndicator={false}
           contentContainerStyle={{
             paddingRight: 20,
           }}
         >
-          {popularRecipes.map(
-            (recipe) => (
-              <RecipeCard
-                key={
-                  recipe.id
-                }
-                recipe={
-                  recipe
-                }
-                nutrition={
-                  calculateRecipeNutrition(
-                    recipe,
-                    productsArray
-                  )
-                }
-                favorite={isFavorite(
-                  recipe.id
-                )}
-                onPress={() =>
-                  openRecipe(
-                    recipe.id
-                  )
-                }
-                onFavorite={() =>
-                  toggleFavorite(
-                    recipe.id
-                  )
-                }
-                compact
-              />
-            )
+          {popularRecipes.map((recipe) =>
+            renderRecipeCard(recipe, true)
           )}
         </ScrollView>
       ) : (
@@ -10400,63 +10236,27 @@ function renderHomeScreen() {
             ? "Все"
             : null
         }
-        onAction={
-          goFavorites
-        }
+        onAction={goFavorites}
       />
-      {favoriteRecipes.length >
-      0 ? (
-        favoriteRecipes.map(
-          (recipe) => (
-            <RecipeCard
-              key={
-                recipe.id
-              }
-              recipe={
-                recipe
-              }
-              nutrition={
-                calculateRecipeNutrition(
-                  recipe,
-                  productsArray
-                )
-              }
-              favorite
-              onPress={() =>
-                openRecipe(
-                  recipe.id
-                )
-              }
-              onFavorite={() =>
-                toggleFavorite(
-                  recipe.id
-                )
-              }
-            />
-          )
+      {favoriteRecipes.length > 0 ? (
+        favoriteRecipes.map((recipe) =>
+          renderRecipeCard(recipe, false, true)
         )
       ) : (
         <EmptyState
           title="Избранное пусто"
           text="Нажми ❤️ на любом рецепте, чтобы сохранить его."
           button="Найти рецепт"
-          onPress={
-            goRecipes
-          }
+          onPress={goRecipes}
         />
       )}
-      <View
-        style={
-          styles.bottomSpacer
-        }
-      />
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
-
   // ============================================================
-// RECIPES SCREEN
-// ============================================================
+  // RECIPES SCREEN
+  // ============================================================
 function renderRecipesScreen() {
   const recipesArray =
     Array.isArray(recipes)
@@ -10467,124 +10267,73 @@ function renderRecipesScreen() {
       ? filteredRecipes
       : [];
   const productsArray =
-    ensureProductsArray(
-      products
-    );
+    ensureProductsArray(products);
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={
-        styles.scrollContent
-      }
-      showsVerticalScrollIndicator={
-        false
-      }
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
     >
       <AppHeader
         title="Рецепты"
         subtitle={`${recipesArray.length} рецептов`}
-        onProfilePress={
-          goProfile
-        }
+        onProfilePress={goProfile}
       />
       <SearchBar
         value={search}
-        onChangeText={
-          setSearch
-        }
+        onChangeText={setSearch}
         placeholder="Поиск рецепта..."
       />
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.categoryScroll
-        }
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoryScroll}
       >
-        {recipeCategories.map(
-          (category) => {
-            const active =
-              recipeCategory ===
-              category;
-            return (
-              <Pressable
-                key={
-                  category
-                }
-                onPress={() =>
-                  setRecipeCategory(
-                    category
-                  )
-                }
+        {recipeCategories.map((category) => {
+          const active =
+            recipeCategory === category;
+          return (
+            <Pressable
+              key={category}
+              onPress={() =>
+                setRecipeCategory(category)
+              }
+              style={[
+                styles.categoryPill,
+                active && styles.categoryPillActive,
+              ]}
+            >
+              <Text
                 style={[
-                  styles.categoryPill,
+                  styles.categoryPillText,
                   active &&
-                    styles.categoryPillActive,
+                    styles.categoryPillTextActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.categoryPillText,
-                    active &&
-                      styles.categoryPillTextActive,
-                  ]}
-                >
-                  {category}
-                </Text>
-              </Pressable>
-            );
-          }
-        )}
+                {category}
+              </Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
-      <View
-        style={
-          styles.resultCountRow
-        }
-      >
-        <Text
-          style={
-            styles.resultCount
-          }
-        >
-          {filteredRecipesArray.length}{" "}
-          рецептов
+      <View style={styles.resultCountRow}>
+        <Text style={styles.resultCount}>
+          {filteredRecipesArray.length} рецептов
         </Text>
       </View>
-      {filteredRecipesArray.length >
-      0 ? (
-        filteredRecipesArray.map(
-          (recipe) => (
-            <RecipeCard
-              key={
-                recipe.id
-              }
-              recipe={
-                recipe
-              }
-              nutrition={
-                calculateRecipeNutrition(
-                  recipe,
-                  productsArray
-                )
-              }
-              favorite={isFavorite(
-                recipe.id
-              )}
-              onPress={() =>
-                openRecipe(
-                  recipe.id
-                )
-              }
-              onFavorite={() =>
-                toggleFavorite(
-                  recipe.id
-                )
-              }
-            />
-          )
-        )
+      {filteredRecipesArray.length > 0 ? (
+        filteredRecipesArray.map((recipe) => (
+          <RecipeCard
+            key={recipe.id}
+            recipe={recipe}
+            products={productsArray}
+            favorite={isFavorite(recipe.id)}
+            onPress={() => openRecipe(recipe.id)}
+            onFavorite={() =>
+              toggleFavorite(recipe.id)
+            }
+          />
+        ))
       ) : (
         <EmptyState
           title="Ничего не найдено"
@@ -10592,24 +10341,18 @@ function renderRecipesScreen() {
           button="Сбросить"
           onPress={() => {
             setSearch("");
-            setRecipeCategory(
-              "Все"
-            );
+            setRecipeCategory("Все");
           }}
         />
       )}
-      <View
-        style={
-          styles.bottomSpacer
-        }
-      />
+      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
 
   // ============================================================
-// RECIPE DETAIL SCREEN
-// ============================================================
+  // RECIPE DETAIL SCREEN
+  // ============================================================
 function renderRecipeScreen() {
   const recipe =
     selectedRecipe;
