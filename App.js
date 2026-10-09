@@ -17288,10 +17288,10 @@ return (
         renderRecipesScreen()}
       {screen === "products" &&
         renderProductsScreen()}
-      {screen === "recipe" &&
-        renderRecipeDetailScreen()}
+           {screen === "recipe" &&
+        renderRecipeScreen()}
       {screen === "recipeDetail" &&
-        renderRecipeDetailScreen()}
+        renderRecipeScreen()}
       {screen === "favorites" &&
         renderFavoritesScreen()}
       {screen === "diary" &&
@@ -17301,6 +17301,3 @@ return (
   </SafeAreaView>
 );
 }
-
-
-  
